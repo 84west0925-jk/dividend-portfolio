@@ -242,6 +242,28 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 
 .foot-note{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
 
+/* ---------- monthly dividend calendar ---------- */
+.mcal-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+@media (max-width:520px){ .mcal-grid{ grid-template-columns:repeat(3,1fr); } }
+.mcal-tile{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:9px 10px 10px;
+  display:flex; flex-direction:column; gap:5px;
+}
+.mcal-tile.now{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+.mcal-mon{ display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--ink-2); }
+.mcal-mon .now-tag{ font-size:9.5px; font-weight:700; color:var(--accent); }
+.mcal-bar-wrap{ height:4px; border-radius:2px; background:var(--border); overflow:hidden; }
+.mcal-bar{ height:100%; border-radius:2px; background:var(--accent); }
+.mcal-pre{ font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-muted); }
+.mcal-post{ font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:700; color:var(--ink); }
+.mcal-empty{ grid-column:1 / -1; text-align:center; font-size:12.5px; color:var(--ink-muted); padding:18px 0; }
+.mcal-total{
+  display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:12px;
+  border-top:1px solid var(--grid); font-size:12.5px; color:var(--ink-2);
+}
+.mcal-total b{ font-family:"IBM Plex Mono",monospace; color:var(--ink); font-size:13.5px; }
+.mcal-total .sep{ color:var(--ink-muted); }
+
 /* ---------- ranking panel ---------- */
 .tabs{ display:flex; gap:4px; background:var(--surface-2); padding:3px; border-radius:9px; }
 .tab, .rtab{ border:none; background:transparent; padding:6px 12px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--ink-2); cursor:pointer; }
@@ -257,15 +279,33 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 .legend-strip .dot{ width:8px; height:8px; border-radius:50%; }
 
 .rank-list{ max-height:640px; overflow-y:auto; margin:0 -6px; }
+.rank-item{ border-bottom:1px solid var(--grid); }
+.rank-item:last-child{ border-bottom:none; }
 .rank-row{
   display:grid; grid-template-columns: 22px 1fr auto auto 28px; gap:10px; align-items:center;
-  padding:10px 6px; border-bottom:1px solid var(--grid); cursor:default;
+  padding:10px 6px; cursor:pointer; border-radius:8px;
 }
-.rank-row:last-child{ border-bottom:none; }
+.rank-row:hover{ background:var(--surface-2); }
 .rank-num{ font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-muted); text-align:right; }
 .rank-name{ min-width:0; }
 .rank-name .nm{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rank-name .meta{ display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
+.rank-chev{ font-size:10px; color:var(--ink-muted); }
+.rank-item.open .rank-chev{ color:var(--ink-2); }
+.rank-chev .arrow{ display:inline-block; transition:transform .18s ease; }
+.rank-item.open .rank-chev .arrow{ transform:rotate(180deg); }
+.rank-detail{ display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease; }
+.rank-item.open .rank-detail{ grid-template-rows:1fr; }
+.rank-detail-inner{ overflow:hidden; }
+.rank-item.open .rank-detail-inner{ padding:0 6px 12px; }
+.detail-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px 12px; background:var(--surface-2);
+  border-radius:10px; padding:12px 14px;
+}
+@media (max-width:520px){ .detail-grid{ grid-template-columns:repeat(2,1fr); } }
+.detail-item.wide{ grid-column:1 / -1; }
+.detail-item .dk{ font-size:10px; color:var(--ink-muted); }
+.detail-item .dv{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:13px; margin-top:3px; color:var(--ink); }
 .badge{
   font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:5px; letter-spacing:0.01em; white-space:nowrap;
 }
@@ -397,6 +437,23 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
           연 배당 합계가 2,000만 원을 넘으면 초과분은 금융소득종합과세 대상이 될 수 있어요(개인 세무 상황에 따라 다름). 투자자문·세무자문이 아닌 참고용 계산입니다.
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>월별 배당 캘린더</h2>
+          <span class="sub">1월 ~ 12월 · 세전 / 세후</span>
+        </div>
+        <div class="mcal-grid" id="mcalGrid"></div>
+        <div class="mcal-total">
+          <span>연간 합계</span>
+          <b class="tnum" id="mcalTotalPre"></b>
+          <span class="sep">·</span>
+          <b class="tnum" id="mcalTotalPost"></b>
+        </div>
+        <div class="foot-note">
+          보유 종목의 실제 지급월(상장 자료 기준)에 연 배당을 배분한 값입니다. 위 금액은 <b>세전</b>, 아래 굵은 금액은 <b>세후(배당소득세 15.4% 원천징수 후)</b> 기준입니다. 월별 편차는 종목별 지급 주기(매월/분기/반기 등) 차이에서 발생합니다.
+        </div>
+      </div>
     </div>
 
     <!-- RIGHT: research / ranking -->
@@ -511,6 +568,19 @@ function holdingValueKRW(h){
   const v = r.price * h.qty;
   return r.currency === "USD" ? v * FX_RATE : v;
 }
+// distributes each holding's annual KRW dividend across the calendar months it actually pays in
+function monthlyScheduleKRW(){
+  const months = Array.from({length:12}, () => 0);
+  holdings.forEach(h => {
+    const r = byCode[h.code];
+    if (!r || !r.months || !r.months.length) return;
+    const annual = holdingAnnualKRW(h);
+    if (annual <= 0) return;
+    const perPayment = annual / r.months.length;
+    r.months.forEach(m => { months[m-1] += perPayment; });
+  });
+  return months.map(pre => ({pre, post: pre * (1 - TAX_RATE)}));
+}
 
 // ---------- render: holdings list ----------
 function renderHoldings(){
@@ -552,6 +622,36 @@ function renderHoldings(){
       saveState(); renderAll();
     });
   });
+}
+
+// ---------- render: monthly dividend calendar ----------
+function renderMonthlyCalendar(){
+  const grid = document.getElementById("mcalGrid");
+  const sched = monthlyScheduleKRW();
+  const totalPre = sched.reduce((s,x)=>s+x.pre, 0);
+  const totalPost = sched.reduce((s,x)=>s+x.post, 0);
+
+  document.getElementById("mcalTotalPre").textContent = "세전 " + fmtManwon(totalPre/10000) + "만원";
+  document.getElementById("mcalTotalPost").textContent = "세후 " + fmtManwon(totalPost/10000) + "만원";
+
+  if (!holdings.length || totalPre <= 0){
+    grid.innerHTML = '<div class="mcal-empty">보유 종목을 담으면 월별 배당 일정이 여기 표시됩니다.</div>';
+    return;
+  }
+
+  const maxPre = Math.max(...sched.map(x => x.pre), 1);
+  const nowMonth = 9; // 데이터 기준월(2026-09)
+  grid.innerHTML = sched.map((x, i) => {
+    const m = i + 1;
+    const barPct = x.pre > 0 ? Math.max(3, Math.round(x.pre / maxPre * 100)) : 0;
+    const isNow = m === nowMonth;
+    return `<div class="mcal-tile ${isNow ? "now" : ""}">
+      <div class="mcal-mon">${m}월${isNow ? '<span class="now-tag">이번달</span>' : ""}</div>
+      <div class="mcal-bar-wrap"><div class="mcal-bar" style="width:${barPct}%"></div></div>
+      <div class="mcal-pre tnum">세전 ${fmtManwon(x.pre/10000)}만</div>
+      <div class="mcal-post tnum">세후 ${fmtManwon(x.post/10000)}만</div>
+    </div>`;
+  }).join("");
 }
 
 // ---------- render: donut + stats ----------
@@ -633,6 +733,28 @@ function bucketMeta(b){
   if (b === "원금성") return {cls:"crit", label:"원금성"};
   return {cls:"na", label:"데이터부족"};
 }
+// actual monetary dividend figures for one product, shown when its row is expanded
+function productDetailHTML(r){
+  const nUnit = r.currency === "USD" ? "1주" : "1주(1좌)";
+  const annualNative = r.price * (r.dist/100);
+  const annualKRW = r.currency === "USD" ? annualNative * FX_RATE : annualNative;
+  const nPay = r.months.length;
+  const perPayNative = annualNative / nPay;
+  const perPayKRW = annualKRW / nPay;
+  const perPayPostKRW = perPayKRW * (1 - TAX_RATE);
+  const annualPostKRW = annualKRW * (1 - TAX_RATE);
+  const nativeFmt = n => r.currency === "USD" ? ("$" + n.toFixed(2)) : (Math.round(n).toLocaleString("ko-KR") + "원");
+  const monthsTxt = r.months.map(m => m + "월").join(", ");
+  return `<div class="detail-grid">
+    <div class="detail-item"><div class="dk">1회 지급액 · ${nUnit}당(세전)</div><div class="dv tnum">${nativeFmt(perPayNative)}</div></div>
+    <div class="detail-item"><div class="dk">1회 지급액 · 원화(세전)</div><div class="dv tnum">${fmtWon(perPayKRW)}</div></div>
+    <div class="detail-item"><div class="dk">1회 지급액 · 원화(세후)</div><div class="dv tnum">${fmtWon(perPayPostKRW)}</div></div>
+    <div class="detail-item"><div class="dk">연 배당 · ${nUnit}당(세전)</div><div class="dv tnum">${nativeFmt(annualNative)}</div></div>
+    <div class="detail-item"><div class="dk">연 배당 · 원화(세전)</div><div class="dv tnum">${fmtWon(annualKRW)}</div></div>
+    <div class="detail-item"><div class="dk">연 배당 · 원화(세후)</div><div class="dv tnum">${fmtWon(annualPostKRW)}</div></div>
+    <div class="detail-item wide"><div class="dk">지급월 (연 ${nPay}회 · ${r.freq})</div><div class="dv">${monthsTxt}</div></div>
+  </div>`;
+}
 function renderRankList(){
   let rows = UNIVERSE.slice();
   if (ccExcluded) rows = rows.filter(r => !r.cc);
@@ -652,22 +774,32 @@ function renderRankList(){
     const aumTxt = r.aum ? (r.market==="KR" ? `순자산 ${fmtManwon(r.aum)}억` : `시총 ${fmtManwon(r.aum)}억`) : "규모 정보 없음";
     const retCls = r.ret1y >= 0 ? "up" : "down";
     const added = holdingCodes.has(r.code);
-    return `<div class="rank-row">
-      <div class="rank-num tnum">${idx+1}</div>
-      <div class="rank-name">
-        <div class="nm">${r.name}</div>
-        <div class="meta">
-          <span class="badge ${bm.cls}">${bm.label}</span>
-          <span class="sub-meta">${r.market} · ${r.code} · ${aumTxt}</span>
+    return `<div class="rank-item">
+      <div class="rank-row" data-code="${r.code}">
+        <div class="rank-num tnum">${idx+1}</div>
+        <div class="rank-name">
+          <div class="nm">${r.name}</div>
+          <div class="meta">
+            <span class="badge ${bm.cls}">${bm.label}</span>
+            <span class="sub-meta">${r.market} · ${r.code} · ${aumTxt}</span>
+            <span class="rank-chev">실제 배당액 <span class="arrow">▾</span></span>
+          </div>
         </div>
+        <div class="rank-dist"><div class="pct tnum">${r.dist.toFixed(2)}%</div><div class="cap">분배율 · ${r.freq}</div></div>
+        <div class="rank-ret"><div class="pct tnum ${retCls}">${fmtPct(r.ret1y,1)}</div><div class="cap">1y 가격</div></div>
+        <button class="add-circle ${added?'added':''}" data-add="${r.code}" aria-label="${r.name} 담기" title="${added?'다시 담기':'포트폴리오에 담기'}">${added?'✓':'+'}</button>
       </div>
-      <div class="rank-dist"><div class="pct tnum">${r.dist.toFixed(2)}%</div><div class="cap">분배율 · ${r.freq}</div></div>
-      <div class="rank-ret"><div class="pct tnum ${retCls}">${fmtPct(r.ret1y,1)}</div><div class="cap">1y 가격</div></div>
-      <button class="add-circle ${added?'added':''}" data-add="${r.code}" aria-label="${r.name} 담기" title="${added?'다시 담기':'포트폴리오에 담기'}">${added?'✓':'+'}</button>
+      <div class="rank-detail"><div class="rank-detail-inner">${productDetailHTML(r)}</div></div>
     </div>`;
   }).join("");
   document.getElementById("rankCount").textContent = `${rows.length}개 표시 중 (전체 ${UNIVERSE.length}종)`;
 
+  list.querySelectorAll(".rank-row").forEach(row => {
+    row.addEventListener("click", e => {
+      if (e.target.closest("[data-add]")) return;
+      row.closest(".rank-item").classList.toggle("open");
+    });
+  });
   list.querySelectorAll("[data-add]").forEach(btn => {
     btn.addEventListener("click", e => {
       const code = e.target.dataset.add;
@@ -857,6 +989,7 @@ document.getElementById("rankSearch").addEventListener("input", e => { rankSearc
 function renderAll(rerenderDonut=true){
   renderHoldings();
   if (rerenderDonut) renderDonut();
+  renderMonthlyCalendar();
   renderRankList();
 }
 
