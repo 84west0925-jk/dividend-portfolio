@@ -5,6 +5,7 @@
 <title>인컴 파이프라인</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
 <style>
 :root{
   color-scheme: light;
@@ -179,10 +180,21 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 .reco-label{ font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:9px; }
 .reco-desc{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin:9px 0 0; }
 .reco-actions{ display:flex; align-items:center; gap:12px; margin-top:11px; flex-wrap:wrap; }
-.reco-note{ font-size:11.5px; color:var(--good); line-height:1.6; }
-.reco-note.err{ color:var(--crit); }
-.reco-undo{ background:none; border:none; text-decoration:underline; color:var(--ink-2); font-size:11.5px; cursor:pointer; padding:0; font-family:"Public Sans",sans-serif; }
-.reco-undo:hover{ color:var(--ink); }
+.reco-note{ font-size:11.5px; color:var(--crit); line-height:1.6; margin-top:10px; display:none; }
+.reco-note.show{ display:block; }
+.reco-result{
+  display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  margin-top:12px; padding:14px 16px; border-radius:12px; background:var(--accent-wash); border:1px solid var(--accent);
+}
+.reco-result.show{ display:flex; }
+.reco-result .rr-label{ font-size:11px; font-weight:700; color:var(--ink-2); text-transform:uppercase; letter-spacing:0.03em; }
+.reco-result .rr-value{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:26px; color:var(--ink); margin-top:3px; line-height:1.15; }
+.reco-result .rr-cap{ font-size:11.5px; color:var(--ink-2); margin-top:5px; line-height:1.55; }
+.reco-undo{
+  flex:none; background:var(--surface); border:1px solid var(--border-strong); border-radius:8px;
+  color:var(--ink-2); font-size:12px; font-weight:600; cursor:pointer; padding:8px 13px; font-family:"Public Sans",sans-serif;
+}
+.reco-undo:hover{ color:var(--ink); background:var(--page); }
 
 /* ---------- target chips ---------- */
 .target-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
@@ -292,8 +304,10 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 
 @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
 </style>
+
 </head>
 <body>
+
 <div class="wrap">
   <div class="header">
     <div class="titles">
@@ -331,8 +345,16 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
           <p class="reco-desc" id="riskDesc"></p>
           <div class="reco-actions">
             <button class="btn btn-accent" id="recoBtn">목표 월수령액 기준 추천받기</button>
-            <span class="reco-note" id="recoNote"></span>
           </div>
+          <div class="reco-result" id="recoResult">
+            <div>
+              <div class="rr-label">예상 필요 투자금</div>
+              <div class="rr-value" id="recoAmount">0만원</div>
+              <div class="rr-cap" id="recoCap"></div>
+            </div>
+            <button class="reco-undo" id="recoUndo" type="button">되돌리기</button>
+          </div>
+          <p class="reco-note" id="recoNote"></p>
         </div>
       </div>
 
@@ -741,10 +763,12 @@ function pickBasket(tierKey){
 
 function applyRecommendation(){
   const note = document.getElementById("recoNote");
+  const result = document.getElementById("recoResult");
   const picks = pickBasket(riskTier);
   if (!picks.length){
+    result.classList.remove("show");
     note.textContent = "조건에 맞는 종목을 찾지 못했습니다. 목표 금액이나 위험 성향을 조정해보세요.";
-    note.className = "reco-note err";
+    note.classList.add("show");
     return;
   }
   const blendedDist = picks.reduce((s,r) => s + r.dist, 0) / picks.length / 100;
@@ -766,24 +790,29 @@ function applyRecommendation(){
   });
 
   saveState(); renderAll();
-  note.className = "reco-note";
-  note.innerHTML = `${RISK_PROFILES[riskTier].label} 추천 ${picks.length}종목으로 교체했습니다 · 예상 필요 투자금 약 ${fmtManwon(requiredInvestment/10000)}만원 · <button class="reco-undo" id="recoUndo" type="button">되돌리기</button>`;
-  const undoBtn = document.getElementById("recoUndo");
-  if (undoBtn) undoBtn.addEventListener("click", () => {
-    if (lastHoldingsBackup){
-      holdings = lastHoldingsBackup; lastHoldingsBackup = null;
-      saveState(); renderAll();
-      note.textContent = ""; note.className = "reco-note";
-    }
-  });
+  note.textContent = ""; note.classList.remove("show");
+  document.getElementById("recoAmount").textContent = `${fmtManwon(requiredInvestment/10000)}만원`;
+  document.getElementById("recoCap").textContent =
+    `${RISK_PROFILES[riskTier].label} 추천 ${picks.length}종목 · 목표 세후 월 ${fmtManwon(target)}만원 · 평균 분배율 ${(blendedDist*100).toFixed(2)}% 가정`;
+  result.classList.add("show");
 }
+
+document.getElementById("recoUndo").addEventListener("click", () => {
+  const result = document.getElementById("recoResult");
+  if (lastHoldingsBackup){
+    holdings = lastHoldingsBackup; lastHoldingsBackup = null;
+    saveState(); renderAll();
+    result.classList.remove("show");
+  }
+});
 
 document.getElementById("riskTabs").addEventListener("click", e => {
   const btn = e.target.closest(".rtab"); if (!btn) return;
   riskTier = btn.dataset.risk;
   document.querySelectorAll("#riskTabs .rtab").forEach(t => t.classList.toggle("active", t===btn));
   document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
-  document.getElementById("recoNote").textContent = "";
+  document.getElementById("recoNote").classList.remove("show");
+  document.getElementById("recoResult").classList.remove("show");
 });
 document.getElementById("recoBtn").addEventListener("click", applyRecommendation);
 
