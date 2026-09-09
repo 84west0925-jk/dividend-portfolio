@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>인컴 파이프라인</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --page:        #f9f9f7;
+  --surface:     #fcfcfb;
+  --surface-2:   #f2f1ec;
+  --ink:         #0b0b0b;
+  --ink-2:       #52514e;
+  --ink-muted:   #898781;
+  --grid:        #e1e0d9;
+  --baseline:    #c3c2b7;
+  --border:      rgba(11,11,11,0.10);
+  --border-strong: rgba(11,11,11,0.16);
+  --accent:      #4a3aa7;
+  --accent-ink:  #ffffff;
+  --accent-wash: #efecfb;
+  --good:        #0ca30c;
+  --warn:        #fab219;
+  --crit:        #d03b3b;
+  --good-wash:   #e6f6e6;
+  --warn-wash:   #fff4e0;
+  --crit-wash:   #fbe9e9;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --shadow: 0 1px 2px rgba(11,11,11,0.05), 0 6px 20px -8px rgba(11,11,11,0.12);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface:     #1a1a19;
+    --surface-2:   #232322;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --ink-muted:   #8f8d86;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    --border-strong: rgba(255,255,255,0.18);
+    --accent:      #9085e9;
+    --accent-ink:  #14122b;
+    --accent-wash: #232057;
+    --good:        #0ca30c;
+    --warn:        #fab219;
+    --crit:        #e66767;
+    --good-wash:   #12281a;
+    --warn-wash:   #2e2413;
+    --crit-wash:   #301a1a;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#1fa31f; --s7:#9085e9; --s8:#e66767;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px -10px rgba(0,0,0,0.55);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:        #0d0d0d;
+  --surface:     #1a1a19;
+  --surface-2:   #232322;
+  --ink:         #ffffff;
+  --ink-2:       #c3c2b7;
+  --ink-muted:   #8f8d86;
+  --grid:        #2c2c2a;
+  --baseline:    #383835;
+  --border:      rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.18);
+  --accent:      #9085e9;
+  --accent-ink:  #14122b;
+  --accent-wash: #232057;
+  --good:        #0ca30c;
+  --warn:        #fab219;
+  --crit:        #e66767;
+  --good-wash:   #12281a;
+  --warn-wash:   #2e2413;
+  --crit-wash:   #301a1a;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#1fa31f; --s7:#9085e9; --s8:#e66767;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px -10px rgba(0,0,0,0.55);
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-spacing:-0.01em; text-wrap:balance; margin:0; }
+.mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+.tnum{ font-variant-numeric: tabular-nums; }
+
+.wrap{ max-width:1280px; margin:0 auto; padding:28px 24px 64px; }
+
+/* ---------- header ---------- */
+.header{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:22px; }
+.header .titles{ max-width:640px; }
+.eyebrow{ font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:0.09em; text-transform:uppercase; color:var(--accent); font-weight:600; margin-bottom:6px; }
+.header h1{ font-size:30px; }
+.header p{ margin:8px 0 0; color:var(--ink-2); font-size:14.5px; line-height:1.55; }
+.asof{
+  display:flex; align-items:center; gap:8px; font-family:"IBM Plex Mono",monospace;
+  font-size:12.5px; color:var(--ink-2); background:var(--surface); border:1px solid var(--border);
+  padding:8px 12px; border-radius:8px; white-space:nowrap; box-shadow:var(--shadow);
+}
+.asof .dot{ width:7px; height:7px; border-radius:50%; background:var(--good); flex:none; }
+
+/* ---------- layout ---------- */
+.grid{ display:grid; grid-template-columns: minmax(0,1.05fr) minmax(0,1fr); gap:20px; align-items:start; }
+@media (max-width: 880px){ .grid{ grid-template-columns: 1fr; } }
+
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:20px; box-shadow:var(--shadow);
+}
+.card + .card{ margin-top:16px; }
+.card-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:14px; }
+.card-head h2{ font-size:16px; }
+.card-head .sub{ font-size:12.5px; color:var(--ink-muted); }
+
+/* ---------- holdings ---------- */
+.holding-row{
+  display:grid; grid-template-columns: 1fr auto auto auto; gap:10px; align-items:center;
+  padding:11px 4px; border-bottom:1px solid var(--grid);
+}
+.holding-row:last-of-type{ border-bottom:none; }
+.h-name{ min-width:0; }
+.h-name .nm{ font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.h-name .meta{ font-size:11.5px; color:var(--ink-muted); margin-top:2px; }
+.mkt-tag{
+  display:inline-flex; align-items:center; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+  font-weight:600; padding:1px 6px; border-radius:5px; border:1px solid var(--border-strong);
+  color:var(--ink-2); margin-right:6px; letter-spacing:0.02em;
+}
+.qty-input{
+  width:76px; text-align:right; font-family:"IBM Plex Mono",monospace; font-size:13px;
+  padding:6px 8px; border-radius:7px; border:1px solid var(--border-strong); background:var(--page); color:var(--ink);
+}
+.qty-input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+.h-amt{ text-align:right; font-size:13px; min-width:92px; }
+.h-amt .div{ color:var(--ink-muted); font-size:11px; margin-top:2px; }
+.icon-btn{
+  border:none; background:transparent; color:var(--ink-muted); cursor:pointer; width:26px; height:26px;
+  border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1;
+}
+.icon-btn:hover{ background:var(--surface-2); color:var(--crit); }
+.icon-btn:focus-visible{ outline:2px solid var(--accent); }
+.empty-holdings{ padding:18px 4px; color:var(--ink-muted); font-size:13px; }
+
+.search-row{ position:relative; display:flex; gap:8px; margin-top:14px; }
+.search-input{
+  flex:1; min-width:0; padding:9px 12px; border-radius:8px; border:1px solid var(--border-strong);
+  background:var(--page); color:var(--ink); font-size:13.5px; font-family:"Public Sans",sans-serif;
+}
+.search-input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+.add-qty{ width:64px; padding:9px 8px; border-radius:8px; border:1px solid var(--border-strong); background:var(--page); color:var(--ink); font-family:"IBM Plex Mono",monospace; font-size:13px; text-align:center; }
+.btn{
+  font-family:"Public Sans",sans-serif; font-weight:600; font-size:13.5px; border-radius:8px; border:1px solid transparent;
+  padding:9px 14px; cursor:pointer; white-space:nowrap;
+}
+.btn-accent{ background:var(--accent); color:var(--accent-ink); }
+.btn-accent:hover{ filter:brightness(1.06); }
+.btn-accent:focus-visible, .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.autocomplete{
+  position:absolute; top:calc(100% + 6px); left:0; right:86px; z-index:5; background:var(--surface);
+  border:1px solid var(--border-strong); border-radius:10px; box-shadow:var(--shadow); max-height:260px; overflow-y:auto;
+}
+.autocomplete .opt{ padding:9px 12px; font-size:13px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; }
+.autocomplete .opt:hover, .autocomplete .opt.active{ background:var(--surface-2); }
+.autocomplete .opt .code{ color:var(--ink-muted); font-family:"IBM Plex Mono",monospace; font-size:11.5px; }
+.hint{ font-size:11.5px; color:var(--ink-muted); margin-top:8px; }
+
+/* ---------- recommended portfolio ---------- */
+.reco-block{ margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
+.reco-label{ font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:9px; }
+.reco-desc{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin:9px 0 0; }
+.reco-actions{ display:flex; align-items:center; gap:12px; margin-top:11px; flex-wrap:wrap; }
+.reco-note{ font-size:11.5px; color:var(--good); line-height:1.6; }
+.reco-note.err{ color:var(--crit); }
+.reco-undo{ background:none; border:none; text-decoration:underline; color:var(--ink-2); font-size:11.5px; cursor:pointer; padding:0; font-family:"Public Sans",sans-serif; }
+.reco-undo:hover{ color:var(--ink); }
+
+/* ---------- target chips ---------- */
+.target-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; }
+.target-input-wrap{ display:flex; align-items:center; gap:6px; }
+.target-input{
+  width:96px; padding:8px 10px; border-radius:8px; border:1px solid var(--border-strong);
+  background:var(--page); color:var(--ink); font-family:"IBM Plex Mono",monospace; font-size:15px; text-align:right;
+}
+.target-input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+.chips{ display:flex; gap:6px; flex-wrap:wrap; }
+.chip{
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; padding:6px 11px; border-radius:999px;
+  border:1px solid var(--border-strong); background:var(--page); color:var(--ink-2); cursor:pointer;
+}
+.chip.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+
+/* ---------- donut + stats ---------- */
+.donut-row{ display:flex; gap:24px; align-items:center; margin-top:18px; flex-wrap:wrap; }
+.donut-wrap{ position:relative; flex:none; width:172px; height:172px; }
+.donut-center{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; pointer-events:none;
+}
+.donut-center .big{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:22px; }
+.donut-center .lbl{ font-size:11px; color:var(--ink-muted); margin-top:2px; }
+.legend-list{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:7px; }
+.legend-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; }
+.legend-swatch{ width:10px; height:10px; border-radius:3px; flex:none; }
+.legend-item .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-2); }
+.legend-item .val{ font-family:"IBM Plex Mono",monospace; color:var(--ink); }
+.chart-tip{
+  position:absolute; pointer-events:none; background:var(--ink); color:var(--page); font-size:11.5px;
+  padding:6px 9px; border-radius:7px; white-space:nowrap; transform:translate(-50%,-115%); opacity:0; transition:opacity .1s;
+  font-family:"IBM Plex Mono",monospace; z-index:10;
+}
+.chart-tip.show{ opacity:1; }
+
+.stat-tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:18px; }
+.tile{ background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px 13px; }
+.tile .lbl{ font-size:11px; color:var(--ink-muted); }
+.tile .val{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:17px; margin-top:4px; }
+.tile .val.gap-neg{ color:var(--crit); }
+.tile .val.gap-pos{ color:var(--good); }
+.tile .cap{ font-size:10.5px; color:var(--ink-muted); margin-top:3px; }
+
+.foot-note{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
+
+/* ---------- ranking panel ---------- */
+.tabs{ display:flex; gap:4px; background:var(--surface-2); padding:3px; border-radius:9px; }
+.tab, .rtab{ border:none; background:transparent; padding:6px 12px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--ink-2); cursor:pointer; }
+.tab.active, .rtab.active{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
+.filter-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:12px 0 10px; }
+.check-row{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2); }
+.check-row input{ accent-color:var(--accent); width:14px; height:14px; }
+.mkt-pills{ display:flex; gap:5px; }
+.pill{ font-size:11.5px; font-family:"IBM Plex Mono",monospace; padding:4px 9px; border-radius:999px; border:1px solid var(--border-strong); background:var(--page); color:var(--ink-2); cursor:pointer; }
+.pill.active{ background:var(--ink); color:var(--page); border-color:var(--ink); }
+.legend-strip{ display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--ink-muted); margin-bottom:10px; }
+.legend-strip .li{ display:flex; align-items:center; gap:5px; }
+.legend-strip .dot{ width:8px; height:8px; border-radius:50%; }
+
+.rank-list{ max-height:640px; overflow-y:auto; margin:0 -6px; }
+.rank-row{
+  display:grid; grid-template-columns: 22px 1fr auto auto 28px; gap:10px; align-items:center;
+  padding:10px 6px; border-bottom:1px solid var(--grid); cursor:default;
+}
+.rank-row:last-child{ border-bottom:none; }
+.rank-num{ font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-muted); text-align:right; }
+.rank-name{ min-width:0; }
+.rank-name .nm{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rank-name .meta{ display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
+.badge{
+  font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:5px; letter-spacing:0.01em; white-space:nowrap;
+}
+.badge.good{ background:var(--good-wash); color:var(--good); }
+.badge.warn{ background:var(--warn-wash); color:#9a6b00; }
+:root[data-theme="dark"] .badge.warn, @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .badge.warn{ color:var(--warn); } }
+.badge.crit{ background:var(--crit-wash); color:var(--crit); }
+.badge.na{ background:var(--surface-2); color:var(--ink-muted); }
+.sub-meta{ font-size:11px; color:var(--ink-muted); font-family:"IBM Plex Mono",monospace; }
+.rank-dist{ text-align:right; }
+.rank-dist .pct{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:15px; }
+.rank-dist .cap{ font-size:10.5px; color:var(--ink-muted); }
+.rank-ret{ text-align:right; min-width:64px; }
+.rank-ret .pct{ font-family:"IBM Plex Mono",monospace; font-size:12px; }
+.rank-ret .cap{ font-size:10px; color:var(--ink-muted); }
+.up{ color:var(--good); } .down{ color:var(--crit); }
+.add-circle{
+  width:26px; height:26px; border-radius:50%; border:1px solid var(--border-strong); background:var(--page);
+  color:var(--ink-2); cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center;
+}
+.add-circle:hover{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+.add-circle.added{ background:var(--good-wash); border-color:var(--good); color:var(--good); }
+.rank-search{ width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border-strong); background:var(--page); color:var(--ink); font-size:13px; margin-bottom:10px; }
+.rank-search:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+.rank-count{ font-size:11.5px; color:var(--ink-muted); text-align:center; padding:10px 0 2px; }
+
+.methodology{
+  margin-top:16px; font-size:11.5px; color:var(--ink-muted); line-height:1.65; background:var(--surface-2);
+  border-radius:10px; padding:12px 14px; border:1px solid var(--border);
+}
+.methodology b{ color:var(--ink-2); }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:var(--baseline); border-radius:5px; }
+::-webkit-scrollbar-track{ background:transparent; }
+
+@media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="titles">
+      <div class="eyebrow">Monthly Income Designer</div>
+      <h1>인컴 파이프라인</h1>
+      <p>목표 월수령액을 정하면 보유 종목으로 지금 얼마가 들어오는지, 국내·미국 배당 상품 110종의 분배 재원이 얼마나 건전한지 함께 봅니다.</p>
+    </div>
+    <div class="asof"><span class="dot"></span>데이터 2026-09-09 기준 · 매물목록 110종</div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: portfolio designer -->
+    <div>
+      <div class="card">
+        <div class="card-head">
+          <h2>내 포트폴리오</h2>
+          <span class="sub" id="holdingsCount">3종목</span>
+        </div>
+        <div id="holdingsList"></div>
+        <div class="search-row">
+          <input id="searchInput" class="search-input" type="text" placeholder="종목명 또는 코드 검색 (예: SCHD, 458730)" autocomplete="off">
+          <input id="searchQty" class="add-qty" type="number" min="0" step="1" value="10" aria-label="수량">
+          <button class="btn btn-accent" id="addBtn">+ 추가</button>
+          <div id="autocomplete" class="autocomplete" hidden></div>
+        </div>
+        <div class="hint">예시로 3종목이 미리 담겨 있어요 — 직접 수정하거나 지우고 새로 담아보세요. 입력값은 이 브라우저에 자동 저장됩니다.</div>
+
+        <div class="reco-block">
+          <div class="reco-label">추천 포트폴리오로 빠르게 채우기</div>
+          <div class="tabs" id="riskTabs">
+            <button class="rtab" data-risk="stable">안정형</button>
+            <button class="rtab active" data-risk="balanced">보통</button>
+            <button class="rtab" data-risk="aggressive">공격형</button>
+          </div>
+          <p class="reco-desc" id="riskDesc"></p>
+          <div class="reco-actions">
+            <button class="btn btn-accent" id="recoBtn">목표 월수령액 기준 추천받기</button>
+            <span class="reco-note" id="recoNote"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>목표 월수령액 (세후)</h2></div>
+        <div class="target-row">
+          <div class="target-input-wrap">
+            <input id="targetInput" class="target-input mono" type="number" min="0" step="1" value="100">
+            <span class="sub">만원 / 월</span>
+          </div>
+          <div class="chips" id="targetChips">
+            <button class="chip" data-v="50">50만</button>
+            <button class="chip active" data-v="100">100만</button>
+            <button class="chip" data-v="200">200만</button>
+            <button class="chip" data-v="300">300만</button>
+            <button class="chip" data-v="500">500만</button>
+          </div>
+        </div>
+
+        <div class="donut-row">
+          <div class="donut-wrap">
+            <svg id="donutSvg" viewBox="0 0 172 172" width="172" height="172"></svg>
+            <div class="donut-center">
+              <div class="big tnum" id="donutBig">0</div>
+              <div class="lbl">만원 / 월 (세후)</div>
+            </div>
+            <div class="chart-tip" id="chartTip"></div>
+          </div>
+          <div class="legend-list" id="legendList"></div>
+        </div>
+
+        <div class="stat-tiles">
+          <div class="tile"><div class="lbl">현재 월 인컴</div><div class="val tnum" id="statCurrent">0원</div><div class="cap" id="statCurrentCap">세전 0원</div></div>
+          <div class="tile"><div class="lbl">목표</div><div class="val tnum" id="statTarget">0원</div><div class="cap">세후 기준</div></div>
+          <div class="tile"><div class="lbl">부족 / 초과</div><div class="val tnum" id="statGap">0원</div><div class="cap" id="statGapCap">&nbsp;</div></div>
+        </div>
+
+        <div class="foot-note">
+          기준 환율 <span class="mono" id="fxLabel">1,339.0</span>원/$ · 배당소득세 15.4% 원천징수 가정 적용 후 금액입니다.
+          연 배당 합계가 2,000만 원을 넘으면 초과분은 금융소득종합과세 대상이 될 수 있어요(개인 세무 상황에 따라 다름). 투자자문·세무자문이 아닌 참고용 계산입니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: research / ranking -->
+    <div>
+      <div class="card">
+        <div class="card-head">
+          <h2>배당 상품 리서치</h2>
+          <div class="tabs">
+            <button class="tab active" data-sort="aum">전체</button>
+            <button class="tab" data-sort="dist">분배율순</button>
+            <button class="tab" data-sort="health">건전성순</button>
+          </div>
+        </div>
+
+        <input id="rankSearch" class="rank-search" type="text" placeholder="리스트 안에서 검색…" autocomplete="off">
+
+        <div class="legend-strip">
+          <span class="li"><span class="dot" style="background:var(--good)"></span>건전 · 가격 유지</span>
+          <span class="li"><span class="dot" style="background:var(--warn)"></span>주의 · 소폭 침식</span>
+          <span class="li"><span class="dot" style="background:var(--crit)"></span>원금성 · 원금 잠식</span>
+          <span class="li"><span class="dot" style="background:var(--ink-muted)"></span>데이터부족 · 신생</span>
+        </div>
+
+        <div class="filter-row">
+          <label class="check-row"><input type="checkbox" id="ccFilter"> 커버드콜 제외</label>
+          <div class="mkt-pills" id="mktPills">
+            <button class="pill active" data-m="all">전체</button>
+            <button class="pill" data-m="KR">국내</button>
+            <button class="pill" data-m="US">미국</button>
+          </div>
+        </div>
+
+        <div class="rank-list" id="rankList"></div>
+        <div class="rank-count" id="rankCount"></div>
+
+        <div class="methodology">
+          <b>건전성 = 최근 12개월 총수익 − 분배율.</b> 분배금이 기초자산 수익만으로 충당되면 총수익이 분배율 이상이라 "건전"으로, 가격이 분배율만큼 못 따라가면 "주의"·"원금성"으로 표시했습니다.
+          커버드콜(옵션프리미엄) 구조는 분배율이 높아도 원금이 함께 줄어들 수 있어 이 지표로 걸러보는 걸 권합니다.
+          분배율·총수익은 과거 12개월 실적이라 미래를 보장하지 않고, 상장 1년 미만 종목은 총수익 이력이 없어 "데이터부족"으로 분류했습니다. 순자산 300억 원 이상 국내 ETF와 대표 미국 배당 ETF·고배당 개별주를 대상으로 합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const UNIVERSE = [{"code":"498400","name":"KODEX 200타겟위클리커버드콜","market":"KR","category":"ETF","price":21230.0,"currency":"KRW","dist":14.84,"ret1y":123.71,"health":108.87,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":61008,"has1y":true,"cc":true},{"code":"458730","name":"TIGER 미국배당다우존스","market":"KR","category":"ETF","price":14535.0,"currency":"KRW","dist":3.22,"ret1y":23.95,"health":20.73,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":42128,"has1y":true,"cc":false},{"code":"472150","name":"TIGER 배당커버드콜액티브","market":"KR","category":"ETF","price":20975.0,"currency":"KRW","dist":22.0,"ret1y":130.18,"health":108.18,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":26359,"has1y":true,"cc":true},{"code":"161510","name":"PLUS 고배당주","market":"KR","category":"ETF","price":25200.0,"currency":"KRW","dist":4.41,"ret1y":34.32,"health":29.91,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":24120,"has1y":true,"cc":false},{"code":"486290","name":"TIGER 미국나스닥100타겟데일리커버드콜","market":"KR","category":"ETF","price":10200.0,"currency":"KRW","dist":17.28,"ret1y":18.59,"health":1.31,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":24118,"has1y":true,"cc":true},{"code":"441640","name":"KODEX 미국배당커버드콜액티브","market":"KR","category":"ETF","price":12300.0,"currency":"KRW","dist":10.34,"ret1y":13.51,"health":3.17,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":16692,"has1y":true,"cc":true},{"code":"446720","name":"SOL 미국배당다우존스","market":"KR","category":"ETF","price":13330.0,"currency":"KRW","dist":3.29,"ret1y":24.02,"health":20.73,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":10137,"has1y":true,"cc":false},{"code":"494300","name":"KODEX 미국나스닥100데일리커버드콜OTM","market":"KR","category":"ETF","price":8730.0,"currency":"KRW","dist":24.96,"ret1y":11.64,"health":-13.32,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":10028,"has1y":true,"cc":true},{"code":"402970","name":"ACE 미국배당다우존스","market":"KR","category":"ETF","price":14810.0,"currency":"KRW","dist":3.17,"ret1y":24.17,"health":21.0,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":9446,"has1y":true,"cc":false},{"code":"0177R0","name":"TIGER 반도체TOP10커버드콜액티브","market":"KR","category":"ETF","price":11830.0,"currency":"KRW","dist":6.26,"ret1y":17.05,"health":10.79,"bucket":"데이터부족","freq":"분기","months":[5,6,7,8],"aum":8492,"has1y":false,"cc":true},{"code":"466940","name":"TIGER 은행고배당플러스TOP10","market":"KR","category":"ETF","price":26735.0,"currency":"KRW","dist":3.99,"ret1y":44.06,"health":40.07,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":8420,"has1y":true,"cc":false},{"code":"498410","name":"KODEX 금융고배당TOP10타겟위클리커버드콜","market":"KR","category":"ETF","price":11675.0,"currency":"KRW","dist":17.44,"ret1y":11.39,"health":-6.05,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":8204,"has1y":true,"cc":true},{"code":"0219E0","name":"KODEX 200커버드콜액티브","market":"KR","category":"ETF","price":8640.0,"currency":"KRW","dist":3.7,"ret1y":1.02,"health":-2.68,"bucket":"데이터부족","freq":"반기","months":[7,8],"aum":8181,"has1y":false,"cc":true},{"code":"441800","name":"TIME Korea플러스배당액티브","market":"KR","category":"ETF","price":29395.0,"currency":"KRW","dist":7.35,"ret1y":94.81,"health":87.46,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":8087,"has1y":true,"cc":false},{"code":"476550","name":"TIGER 미국30년국채커버드콜액티브(H)","market":"KR","category":"ETF","price":6790.0,"currency":"KRW","dist":14.51,"ret1y":-4.84,"health":-19.35,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":7761,"has1y":true,"cc":true},{"code":"490590","name":"RISE 미국AI밸류체인데일리고정커버드콜","market":"KR","category":"ETF","price":13780.0,"currency":"KRW","dist":22.18,"ret1y":42.22,"health":20.04,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":7673,"has1y":true,"cc":true},{"code":"481060","name":"KODEX 미국30년국채타겟커버드콜(합성 H)","market":"KR","category":"ETF","price":7465.0,"currency":"KRW","dist":14.25,"ret1y":-3.03,"health":-17.28,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":7652,"has1y":true,"cc":true},{"code":"0167B0","name":"SOL 200타겟위클리커버드콜","market":"KR","category":"ETF","price":12135.0,"currency":"KRW","dist":8.31,"ret1y":29.76,"health":21.45,"bucket":"데이터부족","freq":"연5회","months":[4,5,6,7,8],"aum":6918,"has1y":false,"cc":true},{"code":"458760","name":"TIGER 미국배당다우존스타겟커버드콜2호","market":"KR","category":"ETF","price":10625.0,"currency":"KRW","dist":11.05,"ret1y":23.17,"health":12.12,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":6832,"has1y":true,"cc":true},{"code":"482730","name":"TIGER 미국S&P500타겟데일리커버드콜","market":"KR","category":"ETF","price":11430.0,"currency":"KRW","dist":11.37,"ret1y":14.24,"health":2.87,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":6398,"has1y":true,"cc":true},{"code":"251600","name":"PLUS 고배당주채권혼합","market":"KR","category":"ETF","price":15445.0,"currency":"KRW","dist":3.97,"ret1y":14.52,"health":10.55,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":5971,"has1y":true,"cc":false},{"code":"489250","name":"KODEX 미국배당다우존스","market":"KR","category":"ETF","price":12530.0,"currency":"KRW","dist":3.14,"ret1y":24.21,"health":21.07,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":5899,"has1y":true,"cc":false},{"code":"491620","name":"RISE 미국테크100데일리고정커버드콜","market":"KR","category":"ETF","price":10120.0,"currency":"KRW","dist":23.6,"ret1y":18.68,"health":-4.92,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":5490,"has1y":true,"cc":true},{"code":"0105E0","name":"SOL 코리아고배당","market":"KR","category":"ETF","price":12930.0,"currency":"KRW","dist":4.92,"ret1y":35.07,"health":30.15,"bucket":"데이터부족","freq":"연10회","months":[1,2,3,4,5,6,7,8,11,12],"aum":5334,"has1y":false,"cc":false},{"code":"490490","name":"SOL 미국배당미국채혼합50","market":"KR","category":"ETF","price":10745.0,"currency":"KRW","dist":3.29,"ret1y":8.41,"health":5.12,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":4644,"has1y":true,"cc":false},{"code":"483280","name":"KODEX 미국AI테크TOP10타겟커버드콜","market":"KR","category":"ETF","price":11425.0,"currency":"KRW","dist":17.35,"ret1y":12.47,"health":-4.88,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":4536,"has1y":true,"cc":true},{"code":"474220","name":"TIGER 미국테크TOP10타겟커버드콜","market":"KR","category":"ETF","price":14575.0,"currency":"KRW","dist":11.59,"ret1y":10.36,"health":-1.23,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":4097,"has1y":true,"cc":true},{"code":"484880","name":"SOL 금융지주플러스고배당","market":"KR","category":"ETF","price":22725.0,"currency":"KRW","dist":3.87,"ret1y":52.26,"health":48.39,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":3827,"has1y":true,"cc":false},{"code":"0040Y0","name":"SOL 팔란티어커버드콜OTM채권혼합","market":"KR","category":"ETF","price":7860.0,"currency":"KRW","dist":31.11,"ret1y":-0.46,"health":-31.57,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":3541,"has1y":true,"cc":true},{"code":"279530","name":"KODEX 고배당주","market":"KR","category":"ETF","price":17650.0,"currency":"KRW","dist":4.46,"ret1y":40.96,"health":36.5,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":3499,"has1y":true,"cc":false},{"code":"0052D0","name":"TIGER 코리아배당다우존스","market":"KR","category":"ETF","price":15480.0,"currency":"KRW","dist":4.52,"ret1y":30.66,"health":26.14,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":3399,"has1y":true,"cc":false},{"code":"0144L0","name":"KODEX 미국성장커버드콜액티브","market":"KR","category":"ETF","price":9225.0,"currency":"KRW","dist":8.56,"ret1y":-1.01,"health":-9.57,"bucket":"데이터부족","freq":"연8회","months":[1,2,3,4,5,6,7,8],"aum":3368,"has1y":false,"cc":true},{"code":"0008S0","name":"TIGER 미국배당다우존스타겟데일리커버드콜","market":"KR","category":"ETF","price":9680.0,"currency":"KRW","dist":12.99,"ret1y":23.1,"health":10.11,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":3022,"has1y":true,"cc":true},{"code":"489030","name":"PLUS 고배당주위클리커버드콜","market":"KR","category":"ETF","price":6330.0,"currency":"KRW","dist":26.45,"ret1y":-26.17,"health":-52.62,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2917,"has1y":true,"cc":true},{"code":"475080","name":"KODEX 테슬라커버드콜채권혼합액티브","market":"KR","category":"ETF","price":7830.0,"currency":"KRW","dist":17.8,"ret1y":3.23,"health":-14.57,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2856,"has1y":true,"cc":true},{"code":"441680","name":"TIGER 미국나스닥100커버드콜(합성)","market":"KR","category":"ETF","price":10425.0,"currency":"KRW","dist":13.82,"ret1y":17.1,"health":3.28,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2742,"has1y":true,"cc":true},{"code":"473330","name":"SOL 미국30년국채커버드콜(합성)","market":"KR","category":"ETF","price":7720.0,"currency":"KRW","dist":14.28,"ret1y":-4.59,"health":-18.87,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2708,"has1y":true,"cc":true},{"code":"0094M0","name":"RISE 코리아밸류업위클리고정커버드콜","market":"KR","category":"ETF","price":18085.0,"currency":"KRW","dist":20.24,"ret1y":117.96,"health":97.72,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,10,11,12],"aum":2702,"has1y":true,"cc":true},{"code":"493810","name":"TIGER 미국AI빅테크10타겟데일리커버드콜","market":"KR","category":"ETF","price":11125.0,"currency":"KRW","dist":17.58,"ret1y":16.53,"health":-1.05,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2360,"has1y":true,"cc":true},{"code":"452360","name":"SOL 미국배당다우존스(H)","market":"KR","category":"ETF","price":13410.0,"currency":"KRW","dist":3.01,"ret1y":26.24,"health":23.23,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":2319,"has1y":true,"cc":false},{"code":"0089D0","name":"KODEX 금융고배당TOP10","market":"KR","category":"ETF","price":13405.0,"currency":"KRW","dist":3.7,"ret1y":41.23,"health":37.53,"bucket":"건전","freq":"연10회","months":[1,2,3,4,5,6,7,8,11,12],"aum":2264,"has1y":true,"cc":false},{"code":"0104N0","name":"TIGER 200타겟위클리커버드콜","market":"KR","category":"ETF","price":21665.0,"currency":"KRW","dist":5.1,"ret1y":127.11,"health":122.01,"bucket":"데이터부족","freq":"매월","months":[1,2,3,4,5,6,7,8,10,11,12],"aum":2250,"has1y":false,"cc":true},{"code":"266160","name":"RISE 고배당","market":"KR","category":"ETF","price":33890.0,"currency":"KRW","dist":1.84,"ret1y":105.12,"health":103.28,"bucket":"건전","freq":"분기","months":[1,4,7,10],"aum":2149,"has1y":true,"cc":false},{"code":"0005A0","name":"KODEX 미국S&P500데일리커버드콜OTM","market":"KR","category":"ETF","price":9115.0,"currency":"KRW","dist":17.52,"ret1y":14.11,"health":-3.41,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1957,"has1y":true,"cc":true},{"code":"480040","name":"ACE 미국반도체데일리타겟커버드콜(합성)","market":"KR","category":"ETF","price":14440.0,"currency":"KRW","dist":22.84,"ret1y":76.87,"health":54.03,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1904,"has1y":true,"cc":true},{"code":"429000","name":"TIGER 미국S&P500배당귀족","market":"KR","category":"ETF","price":12855.0,"currency":"KRW","dist":2.3,"ret1y":6.67,"health":4.37,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1838,"has1y":true,"cc":false},{"code":"0190G0","name":"KODEX 반도체타겟위클리커버드콜","market":"KR","category":"ETF","price":9350.0,"currency":"KRW","dist":3.18,"ret1y":-9.34,"health":-12.52,"bucket":"데이터부족","freq":"분기","months":[5,6,7,8],"aum":1820,"has1y":false,"cc":true},{"code":"483290","name":"KODEX 미국배당다우존스타겟커버드콜","market":"KR","category":"ETF","price":9965.0,"currency":"KRW","dist":13.44,"ret1y":23.19,"health":9.75,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1784,"has1y":true,"cc":true},{"code":"480020","name":"ACE 미국빅테크7+데일리타겟커버드콜(합성)","market":"KR","category":"ETF","price":10145.0,"currency":"KRW","dist":26.04,"ret1y":5.34,"health":-20.7,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1694,"has1y":true,"cc":true},{"code":"0040X0","name":"SOL 팔란티어미국채커버드콜혼합","market":"KR","category":"ETF","price":9075.0,"currency":"KRW","dist":26.95,"ret1y":0.37,"health":-26.58,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1687,"has1y":true,"cc":true},{"code":"490600","name":"RISE 미국배당100데일리고정커버드콜","market":"KR","category":"ETF","price":8790.0,"currency":"KRW","dist":18.26,"ret1y":16.8,"health":-1.46,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1671,"has1y":true,"cc":true},{"code":"237370","name":"KODEX 코리아배당성장채권혼합","market":"KR","category":"ETF","price":15695.0,"currency":"KRW","dist":2.92,"ret1y":11.73,"health":8.81,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1632,"has1y":true,"cc":false},{"code":"480030","name":"ACE 미국500데일리타겟커버드콜(합성)","market":"KR","category":"ETF","price":9655.0,"currency":"KRW","dist":20.79,"ret1y":12.09,"health":-8.7,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1545,"has1y":true,"cc":true},{"code":"0153K0","name":"KODEX 주주환원고배당주","market":"KR","category":"ETF","price":12220.0,"currency":"KRW","dist":1.94,"ret1y":19.63,"health":17.69,"bucket":"데이터부족","freq":"연6회","months":[3,4,5,6,7,8],"aum":1466,"has1y":false,"cc":false},{"code":"0199C0","name":"ACE 고배당주Plus커버드콜액티브","market":"KR","category":"ETF","price":9220.0,"currency":"KRW","dist":5.54,"ret1y":-5.28,"health":-10.82,"bucket":"데이터부족","freq":"연3회","months":[6,7,8],"aum":1387,"has1y":false,"cc":true},{"code":"0132K0","name":"PLUS 테슬라위클리커버드콜채권혼합","market":"KR","category":"ETF","price":8025.0,"currency":"KRW","dist":18.88,"ret1y":-4.37,"health":-23.25,"bucket":"데이터부족","freq":"연9회","months":[1,2,3,4,5,6,7,8,12],"aum":1067,"has1y":false,"cc":true},{"code":"476850","name":"KoAct 배당성장액티브","market":"KR","category":"ETF","price":22045.0,"currency":"KRW","dist":6.68,"ret1y":110.78,"health":104.1,"bucket":"건전","freq":"연8회","months":[1,3,4,5,6,7,8,10],"aum":1046,"has1y":true,"cc":false},{"code":"211900","name":"KODEX 코리아배당성장","market":"KR","category":"ETF","price":28260.0,"currency":"KRW","dist":2.63,"ret1y":43.78,"health":41.15,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":919,"has1y":true,"cc":false},{"code":"325020","name":"KODEX 배당가치","market":"KR","category":"ETF","price":29610.0,"currency":"KRW","dist":2.84,"ret1y":81.27,"health":78.43,"bucket":"건전","freq":"분기","months":[1,4,7,10],"aum":917,"has1y":true,"cc":false},{"code":"0018C0","name":"PLUS 고배당주위클리고정커버드콜","market":"KR","category":"ETF","price":10695.0,"currency":"KRW","dist":18.2,"ret1y":3.4,"health":-14.8,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":802,"has1y":true,"cc":true},{"code":"0098N0","name":"PLUS 자사주매입고배당주","market":"KR","category":"ETF","price":13055.0,"currency":"KRW","dist":4.4,"ret1y":34.4,"health":30.0,"bucket":"데이터부족","freq":"매월","months":[1,2,3,4,5,6,7,8,10,11,12],"aum":790,"has1y":false,"cc":false},{"code":"210780","name":"TIGER 코스피고배당","market":"KR","category":"ETF","price":23510.0,"currency":"KRW","dist":4.68,"ret1y":28.96,"health":24.28,"bucket":"건전","freq":"분기","months":[1,4,7,10],"aum":776,"has1y":true,"cc":false},{"code":"0049M0","name":"ACE 미국배당퀄리티+커버드콜액티브","market":"KR","category":"ETF","price":10915.0,"currency":"KRW","dist":8.22,"ret1y":10.33,"health":2.11,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":775,"has1y":true,"cc":true},{"code":"0198A0","name":"KIWOOM 코스닥150커버드콜액티브","market":"KR","category":"ETF","price":8690.0,"currency":"KRW","dist":4.6,"ret1y":-13.61,"health":-18.21,"bucket":"데이터부족","freq":"반기","months":[7,8],"aum":753,"has1y":false,"cc":true},{"code":"0022T0","name":"SOL 국제금커버드콜액티브","market":"KR","category":"ETF","price":12700.0,"currency":"KRW","dist":4.83,"ret1y":14.26,"health":9.43,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":722,"has1y":true,"cc":true},{"code":"0210E0","name":"PLUS 200커버드콜액티브","market":"KR","category":"ETF","price":7560.0,"currency":"KRW","dist":3.78,"ret1y":-16.37,"health":-20.15,"bucket":"데이터부족","freq":"반기","months":[7,8],"aum":718,"has1y":false,"cc":true},{"code":"211560","name":"TIGER 배당성장","market":"KR","category":"ETF","price":35405.0,"currency":"KRW","dist":2.56,"ret1y":44.18,"health":41.62,"bucket":"건전","freq":"연3회","months":[4,7,10],"aum":712,"has1y":true,"cc":false},{"code":"458750","name":"TIGER 미국배당다우존스타겟커버드콜1호","market":"KR","category":"ETF","price":12625.0,"currency":"KRW","dist":6.5,"ret1y":23.48,"health":16.98,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":657,"has1y":true,"cc":true},{"code":"0000D0","name":"TIGER 엔비디아미국채커버드콜밸런스(합성)","market":"KR","category":"ETF","price":8825.0,"currency":"KRW","dist":14.74,"ret1y":4.17,"health":-10.57,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":608,"has1y":true,"cc":true},{"code":"0111J0","name":"HANARO 증권고배당TOP3플러스","market":"KR","category":"ETF","price":12535.0,"currency":"KRW","dist":2.11,"ret1y":22.91,"health":20.8,"bucket":"데이터부족","freq":"연8회","months":[1,2,3,4,5,6,7,8],"aum":556,"has1y":false,"cc":false},{"code":"0046Y0","name":"ACE 미국배당퀄리티","market":"KR","category":"ETF","price":12195.0,"currency":"KRW","dist":1.57,"ret1y":12.14,"health":10.57,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":524,"has1y":true,"cc":false},{"code":"0139P0","name":"ACE 고배당주","market":"KR","category":"ETF","price":13475.0,"currency":"KRW","dist":3.01,"ret1y":26.87,"health":23.86,"bucket":"데이터부족","freq":"연9회","months":[1,2,3,4,5,6,7,8,12],"aum":499,"has1y":false,"cc":false},{"code":"472830","name":"RISE 미국30년국채커버드콜(합성)","market":"KR","category":"ETF","price":7655.0,"currency":"KRW","dist":12.84,"ret1y":-5.86,"health":-18.7,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":424,"has1y":true,"cc":true},{"code":"0089C0","name":"KODEX 미국S&P500변동성확대시커버드콜","market":"KR","category":"ETF","price":11075.0,"currency":"KRW","dist":2.25,"ret1y":11.53,"health":9.28,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":421,"has1y":true,"cc":true},{"code":"322410","name":"HANARO K고배당","market":"KR","category":"ETF","price":23120.0,"currency":"KRW","dist":2.96,"ret1y":40.11,"health":37.15,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":405,"has1y":true,"cc":false},{"code":"276970","name":"KODEX 미국S&P500배당귀족커버드콜(합성 H)","market":"KR","category":"ETF","price":7855.0,"currency":"KRW","dist":5.91,"ret1y":6.98,"health":1.07,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":369,"has1y":true,"cc":true},{"code":"104530","name":"KIWOOM 코리아고배당","market":"KR","category":"ETF","price":17590.0,"currency":"KRW","dist":4.63,"ret1y":22.59,"health":17.96,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":361,"has1y":true,"cc":false},{"code":"498860","name":"RISE 코리아금융고배당","market":"KR","category":"ETF","price":16830.0,"currency":"KRW","dist":3.94,"ret1y":24.32,"health":20.38,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":336,"has1y":true,"cc":false},{"code":"0138T0","name":"RISE 미국S&P500데일리고정커버드콜","market":"KR","category":"ETF","price":9250.0,"currency":"KRW","dist":10.55,"ret1y":1.57,"health":-8.98,"bucket":"데이터부족","freq":"연9회","months":[1,2,3,4,5,6,7,8,12],"aum":314,"has1y":false,"cc":true},{"code":"245350","name":"TIGER 유로스탁스배당30","market":"KR","category":"ETF","price":19120.0,"currency":"KRW","dist":3.98,"ret1y":19.58,"health":15.6,"bucket":"건전","freq":"분기","months":[1,4,7,10],"aum":306,"has1y":true,"cc":false},{"code":"192720","name":"파워 고배당저변동성","market":"KR","category":"ETF","price":58805.0,"currency":"KRW","dist":2.54,"ret1y":41.42,"health":38.88,"bucket":"건전","freq":"연3회","months":[4,7,10],"aum":300,"has1y":true,"cc":false},{"code":"BTI","name":"British American Tobacco p.l.c.","market":"US","category":"개별주(ADR)","price":55.15,"currency":"USD","dist":5.74,"ret1y":3.79,"health":-1.95,"bucket":"주의","freq":"분기","months":[3,7,10,12],"aum":15902,"has1y":true,"cc":false},{"code":"DIVO","name":"Amplify CWP Enhanced Dividend Income ETF","market":"US","category":"ETF","price":47.92,"currency":"USD","dist":6.64,"ret1y":17.5,"health":10.86,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1059,"has1y":true,"cc":true},{"code":"DVY","name":"iShares Select Dividend ETF","market":"US","category":"ETF","price":163.31,"currency":"USD","dist":3.22,"ret1y":19.97,"health":16.75,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":3161,"has1y":true,"cc":false},{"code":"GPIQ","name":"Goldman Sachs Nasdaq-100 Premium Income ETF","market":"US","category":"ETF","price":56.6,"currency":"USD","dist":10.88,"ret1y":23.5,"health":12.62,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":751,"has1y":true,"cc":true},{"code":"GPIX","name":"Goldman Sachs S&P 500 Premium Income ETF","market":"US","category":"ETF","price":55.82,"currency":"USD","dist":8.81,"ret1y":19.09,"health":10.28,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":749,"has1y":true,"cc":true},{"code":"HDV","name":"iShares Core High Dividend ETF","market":"US","category":"ETF","price":29.19,"currency":"USD","dist":3.38,"ret1y":24.79,"health":21.41,"bucket":"건전","freq":"연6회","months":[3,6,7,8,9,12],"aum":2074,"has1y":true,"cc":false},{"code":"IWMI","name":"NEOS Russell 2000 High Income ETF","market":"US","category":"ETF","price":52.005,"currency":"USD","dist":15.0,"ret1y":24.44,"health":9.44,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":165,"has1y":true,"cc":true},{"code":"JEPI","name":"JPMorgan Equity Premium Income ETF","market":"US","category":"ETF","price":56.87,"currency":"USD","dist":8.71,"ret1y":8.45,"health":-0.26,"bucket":"주의","freq":"매월","months":[2,3,4,5,6,7,8,9,10,11,12],"aum":6180,"has1y":true,"cc":true},{"code":"JEPQ","name":"JPMorgan Nasdaq Equity Premium Income ETF","market":"US","category":"ETF","price":59.85,"currency":"USD","dist":12.04,"ret1y":19.88,"health":7.84,"bucket":"건전","freq":"매월","months":[2,3,4,5,6,7,8,9,10,11,12],"aum":5652,"has1y":true,"cc":true},{"code":"JNJ","name":"Johnson & Johnson","market":"US","category":"개별주","price":269.12,"currency":"USD","dist":2.44,"ret1y":54.49,"health":52.05,"bucket":"건전","freq":"분기","months":[2,5,8,11],"aum":86841,"has1y":true,"cc":false},{"code":"KO","name":"The Coca-Cola Company","market":"US","category":"개별주","price":88.36,"currency":"USD","dist":2.35,"ret1y":34.75,"health":32.4,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":50905,"has1y":true,"cc":false},{"code":"MAIN","name":"Main Street Capital Corporation","market":"US","category":"개별주(BDC)","price":56.66,"currency":"USD","dist":8.53,"ret1y":-7.37,"health":-15.9,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":709,"has1y":true,"cc":false},{"code":"MO","name":"Altria Group, Inc.","market":"US","category":"개별주","price":68.17,"currency":"USD","dist":6.22,"ret1y":10.68,"health":4.46,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":15241,"has1y":true,"cc":false},{"code":"O","name":"Realty Income Corporation","market":"US","category":"개별주(리츠)","price":61.02,"currency":"USD","dist":5.76,"ret1y":8.89,"health":3.13,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":7731,"has1y":true,"cc":false},{"code":"PDI","name":"PIMCO Dynamic Income Fund","market":"US","category":"ETF","price":15.19,"currency":"USD","dist":18.91,"ret1y":-12.15,"health":-31.06,"bucket":"원금성","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":960,"has1y":true,"cc":false},{"code":"PEP","name":"PepsiCo, Inc.","market":"US","category":"개별주","price":138.45,"currency":"USD","dist":5.22,"ret1y":1.66,"health":-3.56,"bucket":"주의","freq":"분기","months":[3,6,9,12],"aum":25324,"has1y":true,"cc":false},{"code":"PFE","name":"Pfizer Inc.","market":"US","category":"개별주","price":27.79,"currency":"USD","dist":6.19,"ret1y":21.14,"health":14.95,"bucket":"건전","freq":"분기","months":[1,5,7,11],"aum":21209,"has1y":true,"cc":false},{"code":"PG","name":"The Procter & Gamble Company","market":"US","category":"개별주","price":145.58,"currency":"USD","dist":2.95,"ret1y":-5.75,"health":-8.7,"bucket":"주의","freq":"분기","months":[1,4,7,10],"aum":45276,"has1y":true,"cc":false},{"code":"QQQI","name":"NEOS NASDAQ-100(R) High Income ETF","market":"US","category":"ETF","price":54.7,"currency":"USD","dist":15.13,"ret1y":17.99,"health":2.86,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1908,"has1y":true,"cc":true},{"code":"QYLD","name":"Global X NASDAQ 100 Covered Call ETF","market":"US","category":"ETF","price":18.37,"currency":"USD","dist":12.49,"ret1y":22.91,"health":10.42,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1115,"has1y":true,"cc":true},{"code":"RIO","name":"Rio Tinto Group","market":"US","category":"개별주(ADR)","price":103.83,"currency":"USD","dist":5.9,"ret1y":71.18,"health":65.28,"bucket":"건전","freq":"반기","months":[3,8],"aum":22611,"has1y":true,"cc":false},{"code":"RYLD","name":"Global X Russell 2000 Covered Call ETF","market":"US","category":"ETF","price":16.22,"currency":"USD","dist":12.5,"ret1y":20.34,"health":7.84,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":186,"has1y":true,"cc":true},{"code":"SCHD","name":"Schwab U.S. Dividend Equity ETF","market":"US","category":"ETF","price":34.41,"currency":"USD","dist":3.05,"ret1y":30.01,"health":26.96,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":15042,"has1y":true,"cc":false},{"code":"SPYI","name":"Neos S&P 500(R) High Income ETF","market":"US","category":"ETF","price":53.65,"currency":"USD","dist":12.77,"ret1y":17.01,"health":4.24,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":1568,"has1y":true,"cc":true},{"code":"SVOL","name":"Simplify Volatility Premium ETF","market":"US","category":"ETF","price":16.52,"currency":"USD","dist":22.88,"ret1y":14.88,"health":-8.0,"bucket":"주의","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":71,"has1y":true,"cc":true},{"code":"VIG","name":"Vanguard Dividend Appreciation Index Fund ETF Shares","market":"US","category":"ETF","price":240.11,"currency":"USD","dist":1.49,"ret1y":14.72,"health":13.23,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":17730,"has1y":true,"cc":false},{"code":"VYM","name":"Vanguard High Dividend Yield Index Fund ETF Shares","market":"US","category":"ETF","price":163.52,"currency":"USD","dist":2.22,"ret1y":20.01,"health":17.79,"bucket":"건전","freq":"분기","months":[3,6,9,12],"aum":13502,"has1y":true,"cc":false},{"code":"VZ","name":"Verizon Communications Inc.","market":"US","category":"개별주","price":50.41,"currency":"USD","dist":5.55,"ret1y":24.32,"health":18.77,"bucket":"건전","freq":"분기","months":[1,4,7,10],"aum":28044,"has1y":true,"cc":false},{"code":"XYLD","name":"Global X S&P 500 Covered Call ETF","market":"US","category":"ETF","price":41.59,"currency":"USD","dist":11.17,"ret1y":18.23,"health":7.06,"bucket":"건전","freq":"매월","months":[1,2,3,4,5,6,7,8,9,10,11,12],"aum":447,"has1y":true,"cc":true}];
+
+const FX_RATE = 1339.0;
+const TAX_RATE = 0.154;
+const STORE_KEY = "income-pipeline.v1";
+const CC_COLORS_L = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#4a3aa7","#e34948"];
+const CC_COLORS_D = ["#3987e5","#d95926","#199e70","#c98500","#d55181","#1fa31f","#9085e9","#e66767"];
+const OVERFLOW_COLOR_L = "#c3c2b7", OVERFLOW_COLOR_D = "#3a3a38";
+
+const byCode = {};
+UNIVERSE.forEach(r => byCode[r.code] = r);
+
+function isDark(){
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark") return true;
+  if (t === "light") return false;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function seriesColors(){ return isDark() ? CC_COLORS_D : CC_COLORS_L; }
+
+const fmtWon = n => Math.round(n).toLocaleString("ko-KR") + "원";
+const fmtManwon = n => (Math.round(n*10)/10).toLocaleString("ko-KR");
+const fmtPct = (n, d=2) => (n>0 ? "+" : "") + n.toFixed(d) + "%";
+
+// ---------- state ----------
+let holdings = [];
+let target = 100;
+let rankSort = "aum";
+let ccExcluded = false;
+let mktFilter = "all";
+let rankSearchQ = "";
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw){
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.holdings) && d.holdings.length) holdings = d.holdings.filter(h => byCode[h.code]);
+      if (typeof d.target === "number") target = d.target;
+      return;
+    }
+  }catch(e){}
+  holdings = [
+    {code:"458730", qty:2292},
+    {code:"MO", qty:365},
+    {code:"VZ", qty:494},
+  ];
+  target = 100;
+}
+function saveState(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify({holdings, target})); }catch(e){}
+}
+
+// ---------- calc helpers ----------
+function holdingAnnualKRW(h){
+  const r = byCode[h.code];
+  if (!r) return 0;
+  const valueNative = r.price * h.qty;
+  const annualNative = valueNative * (r.dist/100);
+  return r.currency === "USD" ? annualNative * FX_RATE : annualNative;
+}
+function holdingValueKRW(h){
+  const r = byCode[h.code];
+  if (!r) return 0;
+  const v = r.price * h.qty;
+  return r.currency === "USD" ? v * FX_RATE : v;
+}
+
+// ---------- render: holdings list ----------
+function renderHoldings(){
+  const list = document.getElementById("holdingsList");
+  document.getElementById("holdingsCount").textContent = holdings.length + "종목";
+  if (!holdings.length){
+    list.innerHTML = '<div class="empty-holdings">보유 종목이 없습니다. 아래 검색창이나 오른쪽 리서치 리스트의 + 버튼으로 담아보세요.</div>';
+    return;
+  }
+  list.innerHTML = holdings.map((h, i) => {
+    const r = byCode[h.code];
+    if (!r) return "";
+    const annual = holdingAnnualKRW(h);
+    const value = holdingValueKRW(h);
+    return `<div class="holding-row" data-i="${i}">
+      <div class="h-name">
+        <div class="nm"><span class="mkt-tag">${r.market}</span>${r.name}</div>
+        <div class="meta">${r.code} · 평가 ${fmtManwon(value/10000)}만원 · ${r.freq}</div>
+      </div>
+      <input class="qty-input" type="number" min="0" step="1" value="${h.qty}" data-i="${i}" aria-label="${r.name} 수량">
+      <div class="h-amt">
+        <div class="tnum">${fmtManwon(annual/10000)}만원</div>
+        <div class="div">연 배당 · 분배 ${r.dist.toFixed(2)}%</div>
+      </div>
+      <button class="icon-btn" data-remove="${i}" aria-label="삭제">✕</button>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".qty-input").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const i = +e.target.dataset.i;
+      holdings[i].qty = Math.max(0, +e.target.value || 0);
+      saveState(); renderAll(false);
+    });
+  });
+  list.querySelectorAll("[data-remove]").forEach(btn => {
+    btn.addEventListener("click", e => {
+      holdings.splice(+e.target.dataset.remove, 1);
+      saveState(); renderAll();
+    });
+  });
+}
+
+// ---------- render: donut + stats ----------
+function renderDonut(){
+  const rows = holdings.map(h => {
+    const r = byCode[h.code];
+    const annualPost = holdingAnnualKRW(h) * (1 - TAX_RATE);
+    return {code:h.code, name:r ? r.name : h.code, monthly: annualPost/12};
+  }).filter(x => x.monthly > 0);
+
+  const totalMonthly = rows.reduce((s,x)=>s+x.monthly, 0);
+  const totalAnnualPre = holdings.reduce((s,h)=>s+holdingAnnualKRW(h), 0);
+
+  document.getElementById("donutBig").textContent = fmtManwon(totalMonthly/10000);
+  document.getElementById("statCurrent").textContent = fmtWon(totalMonthly);
+  document.getElementById("statCurrentCap").textContent = "세전 " + fmtWon(totalAnnualPre/12) + "/월";
+
+  const targetWon = target * 10000;
+  document.getElementById("statTarget").textContent = fmtWon(targetWon);
+  const gap = targetWon - totalMonthly;
+  const gapEl = document.getElementById("statGap");
+  gapEl.textContent = (gap > 0 ? "−" : "+") + fmtWon(Math.abs(gap));
+  gapEl.className = "val tnum " + (gap > 0 ? "gap-neg" : "gap-pos");
+  document.getElementById("statGapCap").textContent = gap > 0 ? "목표까지 부족" : "목표 초과 달성";
+
+  // donut svg
+  const svg = document.getElementById("donutSvg");
+  const cx=86, cy=86, r=64, sw=26;
+  const circ = 2*Math.PI*r;
+  const colors = seriesColors();
+  const overflow = isDark() ? OVERFLOW_COLOR_D : OVERFLOW_COLOR_L;
+  let html = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${overflow}" stroke-width="${sw}" opacity="${rows.length?0.18:0.35}"></circle>`;
+  const gapPx = rows.length > 1 ? 3 : 0;
+  let offset = 0;
+  rows.forEach((row, i) => {
+    const frac = totalMonthly > 0 ? row.monthly/totalMonthly : 0;
+    let len = frac*circ - gapPx;
+    if (len < 0) len = 0;
+    const dash = `${len} ${circ-len}`;
+    const rot = -90 + (offset/circ)*360;
+    html += `<circle class="seg" data-i="${i}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[i%8]}" stroke-width="${sw}"
+      stroke-dasharray="${dash}" transform="rotate(${rot} ${cx} ${cy})" style="cursor:pointer"></circle>`;
+    offset += frac*circ;
+  });
+  svg.innerHTML = html;
+
+  const tip = document.getElementById("chartTip");
+  svg.querySelectorAll(".seg").forEach(seg => {
+    seg.addEventListener("mousemove", e => {
+      const row = rows[+seg.dataset.i];
+      const pct = totalMonthly>0 ? (row.monthly/totalMonthly*100).toFixed(1) : "0";
+      tip.textContent = `${row.name} · ${fmtManwon(row.monthly/10000)}만원 (${pct}%)`;
+      const wrap = svg.parentElement.getBoundingClientRect();
+      tip.style.left = (e.clientX - wrap.left) + "px";
+      tip.style.top = (e.clientY - wrap.top) + "px";
+      tip.classList.add("show");
+    });
+    seg.addEventListener("mouseleave", () => tip.classList.remove("show"));
+  });
+
+  // legend
+  const legend = document.getElementById("legendList");
+  if (!rows.length){
+    legend.innerHTML = '<div class="hint">보유 종목을 담으면 월 인컴 구성이 여기 표시됩니다.</div>';
+  } else {
+    legend.innerHTML = rows.map((row,i) => `
+      <div class="legend-item">
+        <span class="legend-swatch" style="background:${colors[i%8]}"></span>
+        <span class="nm">${row.name}</span>
+        <span class="val tnum">${fmtManwon(row.monthly/10000)}만</span>
+      </div>`).join("");
+  }
+}
+
+// ---------- render: ranking list ----------
+function bucketMeta(b){
+  if (b === "건전") return {cls:"good", label:"건전"};
+  if (b === "주의") return {cls:"warn", label:"주의"};
+  if (b === "원금성") return {cls:"crit", label:"원금성"};
+  return {cls:"na", label:"데이터부족"};
+}
+function renderRankList(){
+  let rows = UNIVERSE.slice();
+  if (ccExcluded) rows = rows.filter(r => !r.cc);
+  if (mktFilter !== "all") rows = rows.filter(r => r.market === mktFilter);
+  if (rankSearchQ){
+    const q = rankSearchQ.toLowerCase();
+    rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
+  }
+  if (rankSort === "dist") rows.sort((a,b)=>b.dist-a.dist);
+  else if (rankSort === "health") rows.sort((a,b)=>b.health-a.health);
+  else rows.sort((a,b)=>(b.aum||0)-(a.aum||0));
+
+  const holdingCodes = new Set(holdings.map(h=>h.code));
+  const list = document.getElementById("rankList");
+  list.innerHTML = rows.map((r,idx) => {
+    const bm = bucketMeta(r.bucket);
+    const aumTxt = r.aum ? (r.market==="KR" ? `순자산 ${fmtManwon(r.aum)}억` : `시총 ${fmtManwon(r.aum)}억`) : "규모 정보 없음";
+    const retCls = r.ret1y >= 0 ? "up" : "down";
+    const added = holdingCodes.has(r.code);
+    return `<div class="rank-row">
+      <div class="rank-num tnum">${idx+1}</div>
+      <div class="rank-name">
+        <div class="nm">${r.name}</div>
+        <div class="meta">
+          <span class="badge ${bm.cls}">${bm.label}</span>
+          <span class="sub-meta">${r.market} · ${r.code} · ${aumTxt}</span>
+        </div>
+      </div>
+      <div class="rank-dist"><div class="pct tnum">${r.dist.toFixed(2)}%</div><div class="cap">분배율 · ${r.freq}</div></div>
+      <div class="rank-ret"><div class="pct tnum ${retCls}">${fmtPct(r.ret1y,1)}</div><div class="cap">1y 가격</div></div>
+      <button class="add-circle ${added?'added':''}" data-add="${r.code}" aria-label="${r.name} 담기" title="${added?'다시 담기':'포트폴리오에 담기'}">${added?'✓':'+'}</button>
+    </div>`;
+  }).join("");
+  document.getElementById("rankCount").textContent = `${rows.length}개 표시 중 (전체 ${UNIVERSE.length}종)`;
+
+  list.querySelectorAll("[data-add]").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const code = e.target.dataset.add;
+      const existing = holdings.find(h=>h.code===code);
+      if (existing) existing.qty += 10;
+      else holdings.push({code, qty:10});
+      saveState(); renderAll();
+    });
+  });
+}
+
+// ---------- autocomplete ----------
+function renderAutocomplete(q){
+  const box = document.getElementById("autocomplete");
+  if (!q){ box.hidden = true; box.innerHTML=""; return; }
+  const ql = q.toLowerCase();
+  const matches = UNIVERSE.filter(r => r.name.toLowerCase().includes(ql) || r.code.toLowerCase().includes(ql)).slice(0,8);
+  if (!matches.length){ box.hidden = true; box.innerHTML=""; return; }
+  box.innerHTML = matches.map(r => `<div class="opt" data-code="${r.code}"><span>${r.name}</span><span class="code">${r.market} ${r.code}</span></div>`).join("");
+  box.hidden = false;
+  box.querySelectorAll(".opt").forEach(opt => {
+    opt.addEventListener("click", () => {
+      document.getElementById("searchInput").value = opt.dataset.code;
+      box.hidden = true;
+      doAdd(opt.dataset.code);
+    });
+  });
+}
+function doAdd(codeOrQuery){
+  let r = byCode[codeOrQuery.trim().toUpperCase()];
+  if (!r){
+    const ql = codeOrQuery.trim().toLowerCase();
+    r = UNIVERSE.find(x => x.name.toLowerCase().includes(ql));
+  }
+  if (!r) return;
+  const qty = Math.max(0, +document.getElementById("searchQty").value || 10);
+  const existing = holdings.find(h=>h.code===r.code);
+  if (existing) existing.qty += qty;
+  else holdings.push({code:r.code, qty});
+  document.getElementById("searchInput").value = "";
+  document.getElementById("autocomplete").hidden = true;
+  saveState(); renderAll();
+}
+
+// ---------- recommended portfolio ----------
+const RISK_PROFILES = {
+  stable: {
+    label: "안정형",
+    desc: "커버드콜을 모두 제외하고, 건전 등급 · 분배율 1.5~7% 범위에서 자산 규모가 큰 종목 위주로 3종목을 균등 배분합니다.",
+    n: 3,
+    filter: r => r.bucket === "건전" && !r.cc && r.dist >= 1.5 && r.dist <= 7,
+    score: r => r.aum || 0,
+  },
+  balanced: {
+    label: "보통",
+    desc: "건전 등급 · 분배율 4~15% 범위에서 커버드콜형 ETF와 우량 배당주를 섞어 4종목을 균등 배분합니다.",
+    n: 4,
+    filter: r => r.bucket === "건전" && r.dist >= 4 && r.dist <= 15,
+    score: r => r.health,
+  },
+  aggressive: {
+    label: "공격형",
+    desc: "원금침식 우려가 있는 등급은 제외하고, 건전 등급을 유지한 종목 중 분배율 상위 4종목(매월분배 우선)을 균등 배분합니다.",
+    n: 4,
+    filter: r => r.bucket === "건전" && r.dist >= 8,
+    score: r => r.dist + (r.freq === "매월" ? 3 : 0),
+  },
+};
+let riskTier = "balanced";
+let lastHoldingsBackup = null;
+
+function pickBasket(tierKey){
+  const tier = RISK_PROFILES[tierKey];
+  const pool = UNIVERSE.filter(tier.filter)
+    .slice()
+    .sort((a,b) => tier.score(b)-tier.score(a) || (b.aum||0)-(a.aum||0));
+  const picks = [];
+  const nKR = Math.ceil(tier.n/2), nUS = tier.n - nKR;
+  let krCount = 0, usCount = 0;
+  for (const r of pool){
+    if (picks.length >= tier.n) break;
+    if (r.market === "KR" && krCount < nKR){ picks.push(r); krCount++; }
+    else if (r.market === "US" && usCount < nUS){ picks.push(r); usCount++; }
+  }
+  if (picks.length < tier.n){
+    for (const r of pool){
+      if (picks.length >= tier.n) break;
+      if (!picks.find(p => p.code === r.code)) picks.push(r);
+    }
+  }
+  return picks;
+}
+
+function applyRecommendation(){
+  const note = document.getElementById("recoNote");
+  const picks = pickBasket(riskTier);
+  if (!picks.length){
+    note.textContent = "조건에 맞는 종목을 찾지 못했습니다. 목표 금액이나 위험 성향을 조정해보세요.";
+    note.className = "reco-note err";
+    return;
+  }
+  const blendedDist = picks.reduce((s,r) => s + r.dist, 0) / picks.length / 100;
+  const annualTargetAfterTax = Math.max(target, 1) * 10000 * 12;
+  const requiredInvestment = annualTargetAfterTax / (blendedDist * (1 - TAX_RATE));
+  const perPick = requiredInvestment / picks.length;
+
+  lastHoldingsBackup = holdings.map(h => ({...h}));
+
+  holdings = picks.map(r => {
+    let qty;
+    if (r.currency === "KRW"){
+      qty = Math.max(1, Math.round(perPick / r.price));
+    } else {
+      const usd = perPick / FX_RATE;
+      qty = Math.max(0.01, Math.round((usd / r.price) * 100) / 100);
+    }
+    return {code: r.code, qty};
+  });
+
+  saveState(); renderAll();
+  note.className = "reco-note";
+  note.innerHTML = `${RISK_PROFILES[riskTier].label} 추천 ${picks.length}종목으로 교체했습니다 · 예상 필요 투자금 약 ${fmtManwon(requiredInvestment/10000)}만원 · <button class="reco-undo" id="recoUndo" type="button">되돌리기</button>`;
+  const undoBtn = document.getElementById("recoUndo");
+  if (undoBtn) undoBtn.addEventListener("click", () => {
+    if (lastHoldingsBackup){
+      holdings = lastHoldingsBackup; lastHoldingsBackup = null;
+      saveState(); renderAll();
+      note.textContent = ""; note.className = "reco-note";
+    }
+  });
+}
+
+document.getElementById("riskTabs").addEventListener("click", e => {
+  const btn = e.target.closest(".rtab"); if (!btn) return;
+  riskTier = btn.dataset.risk;
+  document.querySelectorAll("#riskTabs .rtab").forEach(t => t.classList.toggle("active", t===btn));
+  document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
+  document.getElementById("recoNote").textContent = "";
+});
+document.getElementById("recoBtn").addEventListener("click", applyRecommendation);
+
+// ---------- wire up static controls ----------
+document.getElementById("searchInput").addEventListener("input", e => renderAutocomplete(e.target.value));
+document.getElementById("addBtn").addEventListener("click", () => doAdd(document.getElementById("searchInput").value));
+document.getElementById("searchInput").addEventListener("keydown", e => { if (e.key==="Enter") doAdd(e.target.value); });
+document.addEventListener("click", e => {
+  if (!e.target.closest(".search-row")) document.getElementById("autocomplete").hidden = true;
+});
+
+document.getElementById("targetInput").addEventListener("input", e => {
+  target = Math.max(0, +e.target.value || 0);
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", +c.dataset.v === target));
+  saveState(); renderDonut();
+});
+document.getElementById("targetChips").addEventListener("click", e => {
+  const btn = e.target.closest(".chip"); if (!btn) return;
+  target = +btn.dataset.v;
+  document.getElementById("targetInput").value = target;
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c===btn));
+  saveState(); renderDonut();
+});
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active");
+    rankSort = tab.dataset.sort;
+    renderRankList();
+  });
+});
+document.getElementById("ccFilter").addEventListener("change", e => { ccExcluded = e.target.checked; renderRankList(); });
+document.getElementById("mktPills").addEventListener("click", e => {
+  const btn = e.target.closest(".pill"); if (!btn) return;
+  mktFilter = btn.dataset.m;
+  document.querySelectorAll("#mktPills .pill").forEach(p=>p.classList.toggle("active", p===btn));
+  renderRankList();
+});
+document.getElementById("rankSearch").addEventListener("input", e => { rankSearchQ = e.target.value; renderRankList(); });
+
+function renderAll(rerenderDonut=true){
+  renderHoldings();
+  if (rerenderDonut) renderDonut();
+  renderRankList();
+}
+
+loadState();
+document.getElementById("targetInput").value = target;
+document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", +c.dataset.v === target));
+document.getElementById("fxLabel").textContent = FX_RATE.toLocaleString("ko-KR", {minimumFractionDigits:1});
+document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
+renderAll();
+</script>
+
+</body>
+</html>
