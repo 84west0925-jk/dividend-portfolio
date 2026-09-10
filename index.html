@@ -179,17 +179,39 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 .reco-block{ margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
 .reco-label{ font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:9px; }
 .reco-desc{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin:9px 0 0; }
+.reco-mkt-row{ display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+.reco-mkt-label{ font-size:11.5px; color:var(--ink-muted); font-weight:600; }
 .reco-actions{ display:flex; align-items:center; gap:12px; margin-top:11px; flex-wrap:wrap; }
 .reco-note{ font-size:11.5px; color:var(--crit); line-height:1.6; margin-top:10px; display:none; }
 .reco-note.show{ display:block; }
-.reco-result{
-  display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  margin-top:12px; padding:14px 16px; border-radius:12px; background:var(--accent-wash); border:1px solid var(--accent);
+
+.reco-alt-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:14px; }
+.reco-alt-card{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:14px;
+  display:flex; flex-direction:column; gap:10px;
 }
-.reco-result.show{ display:flex; }
-.reco-result .rr-label{ font-size:11px; font-weight:700; color:var(--ink-2); text-transform:uppercase; letter-spacing:0.03em; }
-.reco-result .rr-value{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:26px; color:var(--ink); margin-top:3px; line-height:1.15; }
-.reco-result .rr-cap{ font-size:11.5px; color:var(--ink-2); margin-top:5px; line-height:1.55; }
+.reco-alt-title{ font-size:13px; font-weight:700; color:var(--ink); }
+.reco-alt-desc{ font-size:11px; color:var(--ink-muted); line-height:1.5; margin-top:3px; }
+.rr-label{ font-size:11px; font-weight:700; color:var(--ink-2); text-transform:uppercase; letter-spacing:0.03em; }
+.rr-value{ font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:26px; color:var(--ink); margin-top:3px; line-height:1.15; }
+.rr-cap{ font-size:11.5px; color:var(--ink-2); margin-top:5px; line-height:1.55; }
+.reco-alt-amount .rr-value{ font-size:19px; }
+.reco-alt-amount .rr-cap{ font-size:10.5px; }
+.reco-alt-picks{ border-top:1px solid var(--grid); padding-top:8px; display:flex; flex-direction:column; }
+.reco-pick-row{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid var(--grid); font-size:11.5px; }
+.reco-pick-row:last-child{ border-bottom:none; }
+.reco-pick-row .nm{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-2); }
+.reco-pick-row .stat{ flex:none; text-align:right; font-family:"IBM Plex Mono",monospace; color:var(--ink-2); white-space:nowrap; }
+.reco-pick-row .stat .pct{ color:var(--accent); font-weight:700; }
+.reco-alt-apply{ width:100%; margin-top:2px; }
+
+.reco-applied{
+  display:none; margin-top:14px; padding:14px 16px; border-radius:12px; background:var(--accent-wash); border:1px solid var(--accent);
+}
+.reco-applied.show{ display:block; }
+.reco-applied-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.reco-applied-picks{ margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:flex; flex-direction:column; }
+.reco-applied-picks .reco-pick-row{ border-bottom-color:var(--border); }
 .reco-undo{
   flex:none; background:var(--surface); border:1px solid var(--border-strong); border-radius:8px;
   color:var(--ink-2); font-size:12px; font-weight:600; cursor:pointer; padding:8px 13px; font-family:"Public Sans",sans-serif;
@@ -386,17 +408,34 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
             <button class="rtab" data-risk="aggressive">공격형</button>
           </div>
           <p class="reco-desc" id="riskDesc"></p>
+
+          <div class="reco-mkt-row">
+            <span class="reco-mkt-label">투자 지역</span>
+            <div class="mkt-pills" id="recoMktPills">
+              <button class="pill active" data-mkt="all">국내+해외</button>
+              <button class="pill" data-mkt="KR">국내만</button>
+              <button class="pill" data-mkt="US">해외만</button>
+            </div>
+          </div>
+
           <div class="reco-actions">
             <button class="btn btn-accent" id="recoBtn">목표 월수령액 기준 추천받기</button>
           </div>
-          <div class="reco-result" id="recoResult">
-            <div>
-              <div class="rr-label">예상 필요 투자금</div>
-              <div class="rr-value" id="recoAmount">0만원</div>
-              <div class="rr-cap" id="recoCap"></div>
+
+          <div class="reco-alt-grid" id="recoAltGrid"></div>
+
+          <div class="reco-applied" id="recoApplied">
+            <div class="reco-applied-head">
+              <div>
+                <div class="rr-label" id="recoAppliedLabel">적용된 포트폴리오</div>
+                <div class="rr-value" id="recoAmount">0만원</div>
+                <div class="rr-cap" id="recoCap"></div>
+              </div>
+              <button class="reco-undo" id="recoUndo" type="button">되돌리기</button>
             </div>
-            <button class="reco-undo" id="recoUndo" type="button">되돌리기</button>
+            <div class="reco-applied-picks" id="recoAppliedPicks"></div>
           </div>
+
           <p class="reco-note" id="recoNote"></p>
         </div>
       </div>
@@ -918,49 +957,125 @@ const RISK_PROFILES = {
     score: r => r.dist + (r.freq === "매월" ? 3 : 0),
   },
 };
+// alternative construction strategies, tried in order, for a single 추천받기 click — de-duplicated below
+const RECO_STRATEGIES = [
+  { key:"balanced", label:"균형 구성",   desc:"자산 규모와 건전성 지표를 함께 고려해 균형 있게 구성합니다.", score: null },
+  { key:"yield",    label:"고배당 중심", desc:"같은 위험 성향 안에서 분배율이 가장 높은 종목 위주로 구성합니다.", score: r => r.dist },
+  { key:"quality",  label:"건전성 중심", desc:"같은 위험 성향 안에서 건전성(총수익−분배율) 지표가 가장 높은 종목 위주로 구성합니다.", score: r => r.health },
+];
 let riskTier = "balanced";
+let recoMarket = "all"; // all | KR | US
 let lastHoldingsBackup = null;
+let currentAlternatives = [];
 
-function pickBasket(tierKey){
-  const tier = RISK_PROFILES[tierKey];
-  const pool = UNIVERSE.filter(tier.filter)
-    .slice()
-    .sort((a,b) => tier.score(b)-tier.score(a) || (b.aum||0)-(a.aum||0));
-  const picks = [];
-  const nKR = Math.ceil(tier.n/2), nUS = tier.n - nKR;
-  let krCount = 0, usCount = 0;
-  for (const r of pool){
-    if (picks.length >= tier.n) break;
-    if (r.market === "KR" && krCount < nKR){ picks.push(r); krCount++; }
-    else if (r.market === "US" && usCount < nUS){ picks.push(r); usCount++; }
-  }
-  if (picks.length < tier.n){
-    for (const r of pool){
-      if (picks.length >= tier.n) break;
-      if (!picks.find(p => p.code === r.code)) picks.push(r);
+// diversify KR/US roughly 50:50 only when the scope covers both markets; a single-market scope just takes the top N
+function selectPicks(sortedPool, n, marketFilter){
+  if (marketFilter === "all"){
+    const picks = [];
+    const nKR = Math.ceil(n/2), nUS = n - nKR;
+    let krCount = 0, usCount = 0;
+    for (const r of sortedPool){
+      if (picks.length >= n) break;
+      if (r.market === "KR" && krCount < nKR){ picks.push(r); krCount++; }
+      else if (r.market === "US" && usCount < nUS){ picks.push(r); usCount++; }
     }
+    if (picks.length < n){
+      for (const r of sortedPool){
+        if (picks.length >= n) break;
+        if (!picks.find(p => p.code === r.code)) picks.push(r);
+      }
+    }
+    return picks;
   }
-  return picks;
+  return sortedPool.slice(0, n);
 }
 
-function applyRecommendation(){
-  const note = document.getElementById("recoNote");
-  const result = document.getElementById("recoResult");
-  const picks = pickBasket(riskTier);
-  if (!picks.length){
-    result.classList.remove("show");
-    note.textContent = "조건에 맞는 종목을 찾지 못했습니다. 목표 금액이나 위험 성향을 조정해보세요.";
-    note.classList.add("show");
-    return;
+// up to 3 distinct product baskets for the chosen risk tier + market scope (identical baskets from different
+// strategies are collapsed so the user never sees the same list presented as two different "alternatives")
+function generateAlternatives(tierKey, marketFilter){
+  const tier = RISK_PROFILES[tierKey];
+  let pool = UNIVERSE.filter(tier.filter);
+  if (marketFilter !== "all") pool = pool.filter(r => r.market === marketFilter);
+  if (!pool.length) return [];
+
+  const seen = new Set();
+  const alts = [];
+  for (const strat of RECO_STRATEGIES){
+    const scoreFn = strat.score || tier.score;
+    const sorted = pool.slice().sort((a,b) => scoreFn(b)-scoreFn(a) || (b.aum||0)-(a.aum||0));
+    const picks = selectPicks(sorted, tier.n, marketFilter);
+    if (!picks.length) continue;
+    const key = picks.map(p => p.code).sort().join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    alts.push({ key: strat.key, label: strat.label, desc: strat.desc, picks });
   }
+  return alts;
+}
+
+// blended pre-tax distribution + required investment for a basket, given the current target
+function recoMetrics(picks){
   const blendedDist = picks.reduce((s,r) => s + r.dist, 0) / picks.length / 100;
   const annualTargetAfterTax = Math.max(target, 1) * 10000 * 12;
   const requiredInvestment = annualTargetAfterTax / (blendedDist * (1 - TAX_RATE));
-  const perPick = requiredInvestment / picks.length;
+  return { blendedDist, requiredInvestment };
+}
+
+// compact per-product row shown inline on the recommendation card — the actual dividend a unit pays,
+// not just the distribution rate, so there's no need to go look it up in 배당 상품 리서치 separately
+function recoPickRowHtml(r){
+  const annualNative = r.price * (r.dist/100);
+  const annualKRW = r.currency === "USD" ? annualNative * FX_RATE : annualNative;
+  const annualPostKRW = annualKRW * (1 - TAX_RATE);
+  const unit = r.currency === "USD" ? "1주" : "1좌";
+  return `<div class="reco-pick-row">
+    <span class="nm"><span class="mkt-tag">${r.market}</span>${r.name}</span>
+    <span class="stat"><span class="pct">${r.dist.toFixed(2)}%</span> · ${unit}당 연 ${fmtWon(annualPostKRW)}(세후)</span>
+  </div>`;
+}
+
+function renderRecoAlternatives(){
+  const grid = document.getElementById("recoAltGrid");
+  const note = document.getElementById("recoNote");
+  document.getElementById("recoApplied").classList.remove("show");
+  currentAlternatives = generateAlternatives(riskTier, recoMarket);
+  if (!currentAlternatives.length){
+    grid.innerHTML = "";
+    note.textContent = "조건에 맞는 종목을 찾지 못했습니다. 목표 금액, 위험 성향, 투자 지역을 조정해보세요.";
+    note.classList.add("show");
+    return;
+  }
+  note.textContent = ""; note.classList.remove("show");
+  grid.innerHTML = currentAlternatives.map((alt, i) => {
+    const { blendedDist, requiredInvestment } = recoMetrics(alt.picks);
+    return `<div class="reco-alt-card">
+      <div>
+        <div class="reco-alt-title">${alt.label}</div>
+        <div class="reco-alt-desc">${alt.desc}</div>
+      </div>
+      <div class="reco-alt-amount">
+        <div class="rr-label">예상 필요 투자금</div>
+        <div class="rr-value">${fmtManwon(requiredInvestment/10000)}만원</div>
+        <div class="rr-cap">${alt.picks.length}종목 · 평균 분배율 ${(blendedDist*100).toFixed(2)}% 가정</div>
+      </div>
+      <div class="reco-alt-picks">${alt.picks.map(recoPickRowHtml).join("")}</div>
+      <button class="btn btn-accent reco-alt-apply" data-alt="${i}" type="button">이 구성 적용하기</button>
+    </div>`;
+  }).join("");
+
+  grid.querySelectorAll(".reco-alt-apply").forEach(btn => {
+    btn.addEventListener("click", () => applyAlternative(+btn.dataset.alt));
+  });
+}
+
+function applyAlternative(idx){
+  const alt = currentAlternatives[idx];
+  if (!alt) return;
+  const { blendedDist, requiredInvestment } = recoMetrics(alt.picks);
+  const perPick = requiredInvestment / alt.picks.length;
 
   lastHoldingsBackup = holdings.map(h => ({...h}));
-
-  holdings = picks.map(r => {
+  holdings = alt.picks.map(r => {
     let qty;
     if (r.currency === "KRW"){
       qty = Math.max(1, Math.round(perPick / r.price));
@@ -970,21 +1085,21 @@ function applyRecommendation(){
     }
     return {code: r.code, qty};
   });
-
   saveState(); renderAll();
-  note.textContent = ""; note.classList.remove("show");
+
+  document.getElementById("recoAppliedLabel").textContent = `적용된 구성 · ${alt.label}`;
   document.getElementById("recoAmount").textContent = `${fmtManwon(requiredInvestment/10000)}만원`;
   document.getElementById("recoCap").textContent =
-    `${RISK_PROFILES[riskTier].label} 추천 ${picks.length}종목 · 목표 세후 월 ${fmtManwon(target)}만원 · 평균 분배율 ${(blendedDist*100).toFixed(2)}% 가정`;
-  result.classList.add("show");
+    `${RISK_PROFILES[riskTier].label} · ${alt.picks.length}종목 · 목표 세후 월 ${fmtManwon(target)}만원 · 평균 분배율 ${(blendedDist*100).toFixed(2)}% 가정`;
+  document.getElementById("recoAppliedPicks").innerHTML = alt.picks.map(recoPickRowHtml).join("");
+  document.getElementById("recoApplied").classList.add("show");
 }
 
 document.getElementById("recoUndo").addEventListener("click", () => {
-  const result = document.getElementById("recoResult");
   if (lastHoldingsBackup){
     holdings = lastHoldingsBackup; lastHoldingsBackup = null;
     saveState(); renderAll();
-    result.classList.remove("show");
+    document.getElementById("recoApplied").classList.remove("show");
   }
 });
 
@@ -994,9 +1109,16 @@ document.getElementById("riskTabs").addEventListener("click", e => {
   document.querySelectorAll("#riskTabs .rtab").forEach(t => t.classList.toggle("active", t===btn));
   document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
   document.getElementById("recoNote").classList.remove("show");
-  document.getElementById("recoResult").classList.remove("show");
+  document.getElementById("recoAltGrid").innerHTML = "";
 });
-document.getElementById("recoBtn").addEventListener("click", applyRecommendation);
+document.getElementById("recoMktPills").addEventListener("click", e => {
+  const btn = e.target.closest(".pill"); if (!btn) return;
+  recoMarket = btn.dataset.mkt;
+  document.querySelectorAll("#recoMktPills .pill").forEach(p => p.classList.toggle("active", p===btn));
+  document.getElementById("recoNote").classList.remove("show");
+  document.getElementById("recoAltGrid").innerHTML = "";
+});
+document.getElementById("recoBtn").addEventListener("click", renderRecoAlternatives);
 
 // ---------- wire up static controls ----------
 document.getElementById("searchInput").addEventListener("input", e => renderAutocomplete(e.target.value));
@@ -1050,5 +1172,6 @@ document.getElementById("fxLabel").textContent = FX_RATE.toLocaleString("ko-KR",
 document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
 renderAll();
 </script>
+
 </body>
 </html>
