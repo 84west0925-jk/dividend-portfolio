@@ -239,6 +239,10 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 .tile .val.gap-neg{ color:var(--crit); }
 .tile .val.gap-pos{ color:var(--good); }
 .tile .cap{ font-size:10.5px; color:var(--ink-muted); margin-top:3px; }
+.tile .cap.gap-neg{ color:var(--crit); }
+.tile .cap.gap-pos{ color:var(--good); }
+
+.invest-tiles{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:10px; }
 
 .foot-note{ font-size:11.5px; color:var(--ink-muted); line-height:1.6; margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
 
@@ -344,7 +348,6 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
 
 @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
 </style>
-
 </head>
 <body>
 
@@ -430,6 +433,11 @@ h1,h2,h3{ font-family:"Archivo", system-ui, sans-serif; font-weight:800; letter-
           <div class="tile"><div class="lbl">현재 월 인컴</div><div class="val tnum" id="statCurrent">0원</div><div class="cap" id="statCurrentCap">세전 0원</div></div>
           <div class="tile"><div class="lbl">목표</div><div class="val tnum" id="statTarget">0원</div><div class="cap">세후 기준</div></div>
           <div class="tile"><div class="lbl">부족 / 초과</div><div class="val tnum" id="statGap">0원</div><div class="cap" id="statGapCap">&nbsp;</div></div>
+        </div>
+
+        <div class="invest-tiles">
+          <div class="tile"><div class="lbl">현재 투자금</div><div class="val tnum" id="statInvestCurrent">0만원</div><div class="cap" id="statInvestCurrentCap">보유 종목 평가금액 합계</div></div>
+          <div class="tile"><div class="lbl">목표 달성 예상 필요 투자금</div><div class="val tnum" id="statInvestRequired">—</div><div class="cap" id="statInvestRequiredCap">&nbsp;</div></div>
         </div>
 
         <div class="foot-note">
@@ -613,7 +621,20 @@ function renderHoldings(){
     inp.addEventListener("input", e => {
       const i = +e.target.dataset.i;
       holdings[i].qty = Math.max(0, +e.target.value || 0);
-      saveState(); renderAll(false);
+      saveState();
+      // update this row's own displayed value/dividend in place (no full list rebuild, so typing keeps focus)
+      const row = inp.closest(".holding-row");
+      const r = byCode[holdings[i].code];
+      if (row && r){
+        const annual = holdingAnnualKRW(holdings[i]);
+        const value = holdingValueKRW(holdings[i]);
+        row.querySelector(".h-name .meta").textContent = `${r.code} · 평가 ${fmtManwon(value/10000)}만원 · ${r.freq}`;
+        row.querySelector(".h-amt .tnum").textContent = `${fmtManwon(annual/10000)}만원`;
+      }
+      // and refresh the derived target/투자금/캘린더/리서치 displays so they auto-reflect the manual edit
+      renderDonut();
+      renderMonthlyCalendar();
+      renderRankList();
     });
   });
   list.querySelectorAll("[data-remove]").forEach(btn => {
@@ -676,6 +697,35 @@ function renderDonut(){
   gapEl.textContent = (gap > 0 ? "−" : "+") + fmtWon(Math.abs(gap));
   gapEl.className = "val tnum " + (gap > 0 ? "gap-neg" : "gap-pos");
   document.getElementById("statGapCap").textContent = gap > 0 ? "목표까지 부족" : "목표 초과 달성";
+
+  // ---- investment amount: auto-reflects whatever is in the holdings list right now,
+  // whether the user built it manually or via the recommendation button ----
+  const totalValue = holdings.reduce((s,h)=>s+holdingValueKRW(h), 0);
+  document.getElementById("statInvestCurrent").textContent = fmtManwon(totalValue/10000) + "만원";
+  document.getElementById("statInvestCurrentCap").textContent =
+    holdings.length ? `보유 ${holdings.length}종목 평가금액 합계` : "보유 종목 평가금액 합계";
+
+  const investRequiredEl = document.getElementById("statInvestRequired");
+  const investRequiredCapEl = document.getElementById("statInvestRequiredCap");
+  if (!holdings.length || totalValue <= 0 || totalAnnualPre <= 0){
+    investRequiredEl.textContent = "—";
+    investRequiredEl.className = "val tnum";
+    investRequiredCapEl.textContent = "보유 종목을 담으면 표시됩니다";
+    investRequiredCapEl.className = "cap";
+  } else {
+    const blendedDist = totalAnnualPre / totalValue; // weighted avg pre-tax distribution, current holdings
+    const annualTargetAfterTax = Math.max(target, 1) * 10000 * 12;
+    const requiredInvestment = annualTargetAfterTax / (blendedDist * (1 - TAX_RATE));
+    const investGap = requiredInvestment - totalValue;
+    investRequiredEl.textContent = fmtManwon(requiredInvestment/10000) + "만원";
+    investRequiredEl.className = "val tnum";
+    investRequiredCapEl.textContent =
+      `현재 분배율 ${(blendedDist*100).toFixed(2)}% 가정 · ` +
+      (investGap > 0
+        ? `추가투자 ${fmtManwon(investGap/10000)}만원 필요`
+        : `투자금 확보 완료(여유 ${fmtManwon(Math.abs(investGap)/10000)}만원)`);
+    investRequiredCapEl.className = "cap " + (investGap > 0 ? "gap-neg" : "gap-pos");
+  }
 
   // donut svg
   const svg = document.getElementById("donutSvg");
@@ -1000,6 +1050,5 @@ document.getElementById("fxLabel").textContent = FX_RATE.toLocaleString("ko-KR",
 document.getElementById("riskDesc").textContent = RISK_PROFILES[riskTier].desc;
 renderAll();
 </script>
-
 </body>
 </html>
